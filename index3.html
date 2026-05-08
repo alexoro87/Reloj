@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reloj de Partido</title>
+  <style>
+    body {
+      margin: 0;
+      background: black;
+      color: white;
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .controls button {
+      font-size: 22px;
+      padding: 12px 26px;
+      margin: 5px;
+      border: none;
+      border-radius: 6px;
+    }
+    .start { background: #2ecc71; }
+    .pause { background: #f1c40f; }
+    .reset { background: #e74c3c; }
+
+    #timer {
+      font-size: 90px;
+      margin: 20px 0;
+    }
+
+    .durations button {
+      font-size: 18px;
+      padding: 8px 16px;
+      margin: 0 5px;
+      border: none;
+      border-radius: 6px;
+      background: #3498db;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- CONTROLES ARRIBA -->
+  <div class="controls">
+    <button class="start" onclick="start()">Iniciar</button>
+    <button class="pause" onclick="pause()">Pausar</button>
+    <button class="reset" onclick="reset()">Reiniciar</button>
+  </div>
+
+  <!-- RELOJ -->
+  <div id="timer">10:00</div>
+
+  <!-- DURACIONES ABAJO -->
+  <div class="durations">
+    <button onclick="setMinutes(8)">8 min</button>
+    <button onclick="setMinutes(10)">10 min</button>
+    <button onclick="setMinutes(12)">12 min</button>
+  </div>
+
+  <script>
+    // Persistimos estado para sobrevivir recargas de la página
+    // localStorage guarda datos sin expiración hasta que se borren [1](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage)
+    const KEY = "basket_timer_v1";
+
+    let interval = null;
+    let totalSeconds = 10 * 60;
+
+    // Estado persistido
+    // mode: "running" | "paused"
+    // endAt: timestamp(ms) cuando termina (si running)
+    // remaining: segundos restantes (si paused)
+    // total: duración base actual
+    let state = {
+      mode: "paused",
+      endAt: null,
+      remaining: totalSeconds,
+      total: totalSeconds
+    };
+
+    function saveState() {
+      localStorage.setItem(KEY, JSON.stringify(state));
+    }
+
+    function loadState() {
+      const raw = localStorage.getItem(KEY);
+      if (!raw) { saveState(); return; }
+      try {
+        const parsed = JSON.parse(raw);
+        state = {
+          mode: parsed.mode === "running" ? "running" : "paused",
+          endAt: typeof parsed.endAt === "number" ? parsed.endAt : null,
+          remaining: typeof parsed.remaining === "number" ? parsed.remaining : (parsed.total || totalSeconds),
+          total: typeof parsed.total === "number" ? parsed.total : totalSeconds
+        };
+        totalSeconds = state.total;
+      } catch {
+        state = { mode:"paused", endAt:null, remaining: totalSeconds, total: totalSeconds };
+        saveState();
+      }
+    }
+
+    function computeRemaining() {
+      if (state.mode === "running" && state.endAt) {
+        const msLeft = state.endAt - Date.now();
+        return Math.max(0, Math.ceil(msLeft / 1000));
+      }
+      return Math.max(0, Math.floor(state.remaining));
+    }
+
+    function render() {
+      const left = computeRemaining();
+      const m = Math.floor(left / 60);
+      const s = left % 60;
+      document.getElementById("timer").innerText =
+        String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+
+      if (left <= 0 && state.mode === "running") {
+        stopInterval();
+        state.mode = "paused";
+        state.endAt = null;
+        state.remaining = 0;
+        saveState();
+      }
+    }
+
+    function ensureInterval() {
+      if (interval) return;
+      interval = setInterval(render, 250);
+    }
+
+    function stopInterval() {
+      clearInterval(interval);
+      interval = null;
+    }
+
+    // --- Botones ---
+    function start() {
+      const left = computeRemaining();
+      if (left <= 0) return;
+
+      state.mode = "running";
+      state.remaining = left;
+      state.endAt = Date.now() + left * 1000;
+      state.total = totalSeconds;
+      saveState();
+
+      ensureInterval();
+      render();
+    }
+
+    function pause() {
+      const left = computeRemaining();
+      stopInterval();
+
+      state.mode = "paused";
+      state.endAt = null;
+      state.remaining = left;
+      state.total = totalSeconds;
+      saveState();
+
+      render();
+    }
+
+    function reset() {
+      stopInterval();
+
+      state.mode = "paused";
+      state.endAt = null;
+      state.remaining = totalSeconds;
+      state.total = totalSeconds;
+      saveState();
+
+      render();
+    }
+
+    function setMinutes(mins) {
+      stopInterval();
+      totalSeconds = mins * 60;
+
+      state.mode = "paused";
+      state.endAt = null;
+      state.remaining = totalSeconds;
+      state.total = totalSeconds;
+      saveState();
+
+      render();
+    }
+
+    // --- Inicio ---
+    loadState();
+    render();
+
+    // Si estaba corriendo antes de que la página se recargara, sigue
+    if (state.mode === "running") {
+      ensureInterval();
+    }
+
+    // Re-render rápido al volver a la app/pestaña
+    document.addEventListener("visibilitychange", () => {
+      render();
+      if (!document.hidden && state.mode === "running") ensureInterval();
+    });
+  </script>
+
+</body>
+</html>
