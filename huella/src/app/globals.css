@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+/*
+ * Huella · sistema visual
+ * Cálido y clínico a la vez: fondo crema, verde salvia como color de marca
+ * (salud, calma) y terracota como acento para llamadas a la acción secundarias.
+ */
+@theme inline {
+  --color-canvas: #f7f4ee;
+  --color-surface: #ffffff;
+  --color-sunken: #efebe3;
+  --color-line: #e3ddd2;
+  --color-ink: #1d2a27;
+  --color-ink-soft: #4a5753;
+  --color-ink-mute: #7d8783;
+
+  --color-brand: #2f6f62;
+  --color-brand-strong: #235449;
+  --color-brand-soft: #e3efea;
+  --color-accent: #c2643f;
+  --color-accent-soft: #f7e6dc;
+
+  --color-ok: #2e7d4f;
+  --color-ok-soft: #e1f2e7;
+  --color-warn: #a86a0c;
+  --color-warn-soft: #fbefd6;
+  --color-danger: #b4382f;
+  --color-danger-soft: #f8e1de;
+  --color-whatsapp: #1fa855;
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  --radius-card: 1.25rem;
+  --shadow-card: 0 1px 2px rgb(29 42 39 / 0.04), 0 4px 16px rgb(29 42 39 / 0.06);
+  --shadow-pop: 0 12px 40px rgb(29 42 39 / 0.16);
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: var(--color-brand-soft);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-rise {
+  animation: rise 0.28s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise {
+    animation: none;
+  }
+}
