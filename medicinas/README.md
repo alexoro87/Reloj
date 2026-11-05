@@ -27,16 +27,47 @@ App web instalable (PWA) para recordar tomar tus medicinas a tiempo, inspirada e
 3. Menú del navegador → **Agregar a pantalla de inicio**.
 4. Abre la app, agrega una medicina y acepta las notificaciones.
 
-## Límites importantes
+## App de Android (alarmas garantizadas)
+La carpeta `android/` empaqueta esta misma app con [Capacitor](https://capacitorjs.com). En la app nativa:
+- Las alarmas las programa el sistema: **suenan aunque la app esté cerrada** y después de reiniciar el teléfono.
+- Sonido de alarma propio, botones **✓ Tomada** y **⏱ Posponer** en la notificación.
+- Reportes, PDF, copias de seguridad y recetas se comparten con el menú del teléfono.
+
+### Descargar e instalar
+1. Cada vez que se suben cambios, GitHub Actions compila el APK (pestaña **Actions** → «App Android (APK)»)
+   y lo publica en **Releases** como `MediHora.apk`.
+2. Abre la página de Releases desde el teléfono, descarga `MediHora.apk` y ábrelo.
+   Android pedirá permitir «instalar apps de origen desconocido» para tu navegador: acéptalo.
+3. Abre MediHora → agrega tus medicinas → **Activar** alarmas. En Android 12+ activa también
+   «Alarmas y recordatorios» cuando la app lo pida.
+4. Si tu teléfono tiene ahorro de batería agresivo (Xiaomi, Huawei, Samsung…), quita la restricción
+   de batería para MediHora.
+
+### Llave de firma
+Para que cada versión nueva se instale encima de la anterior **sin perder datos**, el APK debe firmarse
+siempre con la misma llave. La llave no se guarda en el repositorio: se configura en
+Settings → Secrets and variables → Actions con los secretos `MEDIHORA_KEYSTORE_BASE64` (archivo .keystore en base64)
+y `MEDIHORA_KEYSTORE_PASSWORD`. Sin ellos, el APK se firma con una llave temporal (sirve para probar).
+
+### Compilar en tu computadora (opcional)
+Requiere Node 22+, JDK 21 y Android Studio.
+```bash
+npm install
+npx cap sync android
+npx cap open android
+```
+
+### iPhone
+Capacitor también genera la app de iOS (`npx cap add ios`), pero compilarla requiere una Mac con Xcode
+y una cuenta de Apple Developer para instalarla de forma permanente.
+
+## Límites de la versión web
 Una app web no puede programar alarmas del sistema como una app nativa:
 - Los avisos llegan de forma confiable mientras la app está abierta o en segundo plano reciente.
-  Si el sistema cierra el navegador, el aviso aparecerá al volver a abrir la app.
 - En iPhone las notificaciones web requieren iOS 16.4+ y tener la app agregada a la pantalla de inicio.
-
-Para alarmas 100 % garantizadas con la app cerrada, el siguiente paso sería empaquetarla como app nativa
-(por ejemplo con Capacitor + Local Notifications) o añadir un servidor de notificaciones push.
 
 > MediHora no sustituye el consejo de tu médico o farmacéutico.
 
 ## Créditos
 - PDF generado con [jsPDF](https://github.com/parallax/jsPDF) (licencia MIT, incluida en `vendor/`).
+- App nativa con [Capacitor](https://capacitorjs.com) (licencia MIT).
