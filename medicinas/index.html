@@ -97,7 +97,10 @@
     <section id="view-reports" class="view">
       <header class="top">
         <h1>Reportes</h1>
-        <button class="icon-btn" id="btn-csv">⬇ CSV</button>
+        <div class="btn-row" style="margin:0">
+          <button class="icon-btn" id="btn-csv">⬇ CSV</button>
+          <button class="icon-btn" id="btn-pdf">🖨 PDF</button>
+        </div>
       </header>
 
       <div class="filters">
@@ -352,9 +355,42 @@
     </div>
   </div>
 
+  <!-- Hoja: reporte en PDF -->
+  <div class="sheet-backdrop hidden" id="pdf-sheet">
+    <div class="sheet small-sheet">
+      <div class="sheet-body">
+        <h3>Reporte en PDF</h3>
+        <p class="muted small">Incluye un resumen, la gráfica de hora programada vs. hora real de cada medicamento y el detalle por día. Ideal para imprimir o enviar a tu médico.</p>
+        <div class="field">
+          <span>Periodo</span>
+          <div class="seg" id="pdf-range">
+            <button type="button" data-days="7">7 días</button>
+            <button type="button" data-days="14">14 días</button>
+            <button type="button" data-days="30">30 días</button>
+            <button type="button" data-days="90">90 días</button>
+          </div>
+        </div>
+        <div class="field">
+          <span>Medicamentos</span>
+          <div id="pdf-meds"></div>
+        </div>
+        <label class="row-toggle">
+          <span>Incluir tabla día por día</span>
+          <input type="checkbox" id="pdf-table" checked>
+        </label>
+        <div class="action-buttons">
+          <button class="btn full" id="pdf-share">🖨 Imprimir o compartir</button>
+          <button class="btn ghost full" id="pdf-download">⬇ Descargar PDF</button>
+          <button class="btn ghost full" id="pdf-cancel">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
 
   <script src="app.js"></script>
   <script src="reports.js"></script>
+  <script src="pdf.js"></script>
 </body>
 </html>

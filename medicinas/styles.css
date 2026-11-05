@@ -401,3 +401,6 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--primary)
   .badge.miss { background: #3a1d1f; color: #ff8f8f; }
 }
 .tabs button { padding-left: 2px; padding-right: 2px; }
+
+#pdf-meds .row-toggle { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.btn:disabled { opacity: .6; }

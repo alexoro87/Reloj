@@ -13,6 +13,8 @@ App web instalable (PWA) para recordar tomar tus medicinas a tiempo, inspirada e
 - **Reportes**: gráfica de **hora programada vs. hora real** de cada toma (por medicamento y horario,
   7/14/30 días), porcentaje a tiempo (±30 min), desfase promedio, tomas olvidadas, tabla por día
   y descarga en CSV para compartir con tu médico.
+- **Reporte en PDF** (botón 🖨 PDF en Reportes): resumen, gráfica y tabla por día de cada medicamento,
+  para 7/14/30/90 días. Se puede imprimir, compartir (WhatsApp, correo…) o descargar. Funciona sin conexión.
 - **Ajustes**: posponer 5–60 min, sonido, exportar/importar copia de seguridad.
 - Funciona sin conexión. Los datos se guardan **solo en el teléfono** (localStorage).
 
@@ -32,3 +34,6 @@ Para alarmas 100 % garantizadas con la app cerrada, el siguiente paso sería emp
 (por ejemplo con Capacitor + Local Notifications) o añadir un servidor de notificaciones push.
 
 > MediHora no sustituye el consejo de tu médico o farmacéutico.
+
+## Créditos
+- PDF generado con [jsPDF](https://github.com/parallax/jsPDF) (licencia MIT, incluida en `vendor/`).
