@@ -334,6 +334,7 @@ function renderAll() {
   renderToday();
   renderMeds();
   if (currentView === "progress") renderProgress();
+  if (currentView === "reports") renderReports();
   renderNotifUI();
 }
 
@@ -528,8 +529,9 @@ function showView(v) {
   currentView = v;
   document.querySelectorAll(".view").forEach(s => s.classList.toggle("active", s.id === "view-" + v));
   document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("active", b.dataset.view === v));
-  document.getElementById("btn-add-med").classList.toggle("hidden", v === "settings" || v === "progress");
+  document.getElementById("btn-add-med").classList.toggle("hidden", v !== "today" && v !== "meds");
   if (v === "progress") renderProgress();
+  if (v === "reports") renderReports();
   window.scrollTo(0, 0);
 }
 

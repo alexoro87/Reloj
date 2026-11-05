@@ -93,6 +93,58 @@
       </div>
     </section>
 
+    <!-- REPORTES -->
+    <section id="view-reports" class="view">
+      <header class="top">
+        <h1>Reportes</h1>
+        <button class="icon-btn" id="btn-csv">⬇ CSV</button>
+      </header>
+
+      <div class="filters">
+        <select id="rep-med" aria-label="Medicamento"></select>
+        <select id="rep-time" aria-label="Horario"></select>
+        <div class="seg" id="rep-range">
+          <button type="button" data-days="7" class="active">7 días</button>
+          <button type="button" data-days="14">14 días</button>
+          <button type="button" data-days="30">30 días</button>
+        </div>
+      </div>
+
+      <div id="rep-empty" class="empty hidden"><div class="big">📊</div><p>Agrega un medicamento para ver reportes.</p></div>
+
+      <div id="rep-body">
+        <div class="stats">
+          <div class="card stat"><div class="stat-num" id="rep-ontime">–</div><div class="muted small">A tiempo (±30 min)</div></div>
+          <div class="card stat"><div class="stat-num" id="rep-avg">–</div><div class="muted small">Desfase promedio</div></div>
+          <div class="card stat"><div class="stat-num" id="rep-missed">–</div><div class="muted small">Omitidas o sin registrar</div></div>
+        </div>
+
+        <div class="card viz">
+          <h3>Hora programada vs. hora real</h3>
+          <div class="legend">
+            <span><i class="key key-plan"></i>Programada</span>
+            <span><i class="key key-real"></i>Real</span>
+            <span><b class="miss-ico">✕</b>No tomada</span>
+          </div>
+          <div class="chart-wrap" id="chart-wrap">
+            <svg id="chart" role="img" aria-label="Gráfica de hora programada contra hora real de cada toma"></svg>
+            <div class="tip hidden" id="tip"></div>
+          </div>
+          <p class="muted small">Toca o pasa el dedo sobre la gráfica para ver el detalle de cada día.</p>
+        </div>
+
+        <div class="card">
+          <h3 id="rep-table-title">Detalle por día</h3>
+          <div class="table-scroll">
+            <table class="rep-table">
+              <thead><tr><th>Fecha</th><th>Real</th><th>Desfase</th><th>Estado</th></tr></thead>
+              <tbody id="rep-rows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- AJUSTES -->
     <section id="view-settings" class="view">
       <header class="top">
@@ -159,6 +211,7 @@
     <button data-view="today" class="active"><span>📅</span>Hoy</button>
     <button data-view="meds"><span>💊</span>Medicinas</button>
     <button data-view="progress"><span>📈</span>Progreso</button>
+    <button data-view="reports"><span>📊</span>Reportes</button>
     <button data-view="settings"><span>⚙️</span>Ajustes</button>
   </nav>
 
@@ -302,5 +355,6 @@
   <div id="toast" class="toast hidden"></div>
 
   <script src="app.js"></script>
+  <script src="reports.js"></script>
 </body>
 </html>

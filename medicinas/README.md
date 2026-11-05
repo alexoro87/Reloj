@@ -10,6 +10,9 @@ App web instalable (PWA) para recordar tomar tus medicinas a tiempo, inspirada e
   frecuencia (diaria, ciertos días de la semana o cada X días), fechas de inicio/fin, indicaciones y notas.
 - **Inventario**: descuenta al tomar y avisa cuando quedan pocas unidades.
 - **Progreso**: cumplimiento de 7 y 30 días, racha, gráfica de 14 días, cumplimiento por medicamento e historial.
+- **Reportes**: gráfica de **hora programada vs. hora real** de cada toma (por medicamento y horario,
+  7/14/30 días), porcentaje a tiempo (±30 min), desfase promedio, tomas olvidadas, tabla por día
+  y descarga en CSV para compartir con tu médico.
 - **Ajustes**: posponer 5–60 min, sonido, exportar/importar copia de seguridad.
 - Funciona sin conexión. Los datos se guardan **solo en el teléfono** (localStorage).
 
