@@ -1,6 +1,6 @@
 /* Service worker de MediHora: funciona sin conexión y maneja los toques en las notificaciones */
-const CACHE = "medihora-v3";
-const ASSETS = ["./", "index.html", "styles.css", "app.js", "reports.js", "pdf.js", "vendor/jspdf.umd.min.js", "manifest.webmanifest",
+const CACHE = "medihora-v4";
+const ASSETS = ["./", "index.html", "styles.css", "app.js", "reports.js", "pdf.js", "photos.js", "vendor/jspdf.umd.min.js", "manifest.webmanifest",
   "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", e => {

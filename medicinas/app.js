@@ -449,6 +449,7 @@ function renderMeds() {
         <div class="dose-sub">${doseText(m)} · ${m.times.join(", ")}</div>
         <div class="dose-sub">${freqText(m)}${m.paused ? " · ⏸ en pausa" : ended ? " · finalizado" : ""}</div>
         ${stock}
+        ${m.rx?.photoIds?.length ? `<button type="button" class="rx-chip" data-rx="${m.id}">📄 Ver receta${m.rx.photoIds.length > 1 ? ` (${m.rx.photoIds.length})` : ""}</button>` : ""}
       </div>
       <div class="chev">›</div>
     </div>`;
@@ -593,11 +594,15 @@ function openMedForm(id = null) {
   pauseBtn.classList.toggle("hidden", !med);
   pauseBtn.textContent = med?.paused ? "▶ Reanudar recordatorios" : "⏸ Pausar recordatorios";
 
+  rxOpenForm(med);
   document.getElementById("sheet").classList.remove("hidden");
   setTimeout(() => !med && f.name.focus(), 100);
 }
 
-function closeSheet() { document.getElementById("sheet").classList.add("hidden"); }
+function closeSheet(saved = false) {
+  if (!saved) rxDiscard();
+  document.getElementById("sheet").classList.add("hidden");
+}
 
 function renderColors() {
   const el = document.getElementById("colors");
@@ -651,6 +656,7 @@ function saveMedFromForm(ev) {
     stock: Number(f.stock.value) || 0,
     stockAlert: Number(f.stockAlert.value) || 0,
     paused: existing?.paused || false,
+    rx: rxCollect(),
     createdAt: existing?.createdAt || Date.now()
   };
   if (!med.name) { toast("Escribe el nombre"); return; }
@@ -658,7 +664,8 @@ function saveMedFromForm(ev) {
   if (existing) Object.assign(existing, med);
   else state.meds.push(med);
   save();
-  closeSheet();
+  rxCommit();
+  closeSheet(true);
   renderAll();
   scheduleFutureNotifications();
   toast(existing ? "Cambios guardados" : "Medicamento agregado");
@@ -670,10 +677,12 @@ function saveMedFromForm(ev) {
 function deleteMed() {
   const med = state.meds.find(m => m.id === editingId);
   if (!med || !confirm(`¿Eliminar ${med.name} y su historial?`)) return;
+  rxDiscard();
+  rxDeleteForMed(med);
   state.meds = state.meds.filter(m => m.id !== editingId);
   for (const k of Object.keys(state.log)) if (k.startsWith(editingId + "|")) delete state.log[k];
   save();
-  closeSheet();
+  closeSheet(true);
   renderAll();
   toast("Medicamento eliminado");
 }
@@ -733,8 +742,10 @@ async function askNotifPermission() {
   if (p === "granted") { toast("Notificaciones activadas"); scheduleFutureNotifications(); }
 }
 
-function exportData() {
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+async function exportData() {
+  toast("Preparando copia…");
+  const photos = await rxExportAll();
+  const blob = new Blob([JSON.stringify({ ...state, photos })], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = `medihora-${ymd(new Date())}.json`;
@@ -744,11 +755,12 @@ function exportData() {
 
 function importData(file) {
   const r = new FileReader();
-  r.onload = () => {
+  r.onload = async () => {
     try {
       const p = JSON.parse(r.result);
       if (!Array.isArray(p.meds)) throw new Error("Archivo no válido");
       if (!confirm("Esto reemplazará tus datos actuales. ¿Continuar?")) return;
+      await rxImportAll(p.photos);
       state = { meds: p.meds, log: p.log || {}, snooze: p.snooze || {}, notified: {}, settings: { ...state.settings, ...(p.settings || {}) } };
       save(); loadSettingsUI(); renderAll();
       toast("Datos importados");
@@ -779,7 +791,7 @@ function bind() {
   document.getElementById("btn-add-med").onclick = () => openMedForm();
   document.getElementById("btn-add-med-2").onclick = () => openMedForm();
   document.getElementById("btn-go-today").onclick = () => { selectedDate = startOfDay(new Date()); renderToday(); };
-  document.getElementById("btn-cancel").onclick = closeSheet;
+  document.getElementById("btn-cancel").onclick = () => closeSheet();
   document.getElementById("med-form").onsubmit = saveMedFromForm;
   document.getElementById("btn-delete-med").onclick = deleteMed;
   document.getElementById("btn-add-time").onclick = () => {
@@ -825,6 +837,12 @@ function bind() {
     if (card) openActionSheet(card.dataset.key);
   };
   document.getElementById("meds-list").onclick = e => {
+    const rx = e.target.closest("[data-rx]");
+    if (rx) {
+      const m = state.meds.find(x => x.id === rx.dataset.rx);
+      if (m) rxOpenViewer(m.rx.photoIds, 0, { title: m.name });
+      return;
+    }
     const c = e.target.closest("[data-med]");
     if (c) openMedForm(c.dataset.med);
   };
@@ -863,7 +881,7 @@ function bind() {
   document.getElementById("btn-wipe").onclick = () => {
     if (!confirm("¿Borrar todos tus medicamentos e historial? No se puede deshacer.")) return;
     localStorage.removeItem(STORE_KEY);
-    location.reload();
+    rxClear().catch(() => {}).finally(() => location.reload());
   };
 
   // El audio solo puede sonar tras una interacción del usuario

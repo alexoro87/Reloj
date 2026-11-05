@@ -317,6 +317,27 @@
         </label>
 
         <div class="card inner">
+          <div class="rx-head">
+            <strong>📄 Receta médica</strong>
+            <label class="btn ghost small">📷 Agregar foto
+              <input type="file" id="rx-input" accept="image/*" multiple hidden>
+            </label>
+          </div>
+          <p class="muted small" id="rx-empty">Toma una foto de la receta o elígela de tu galería. Se guarda solo en este teléfono.</p>
+          <div class="rx-thumbs" id="rx-thumbs"></div>
+          <div class="grid2">
+            <label class="field">
+              <span>Médico</span>
+              <input name="rxDoctor" placeholder="Ej. Dra. López">
+            </label>
+            <label class="field">
+              <span>Fecha de la receta</span>
+              <input name="rxDate" type="date">
+            </label>
+          </div>
+        </div>
+
+        <div class="card inner">
           <label class="row-toggle">
             <span>Controlar inventario</span>
             <input name="stockOn" type="checkbox">
@@ -360,7 +381,7 @@
     <div class="sheet small-sheet">
       <div class="sheet-body">
         <h3>Reporte en PDF</h3>
-        <p class="muted small">Incluye un resumen, la gráfica de hora programada vs. hora real de cada medicamento y el detalle por día. Ideal para imprimir o enviar a tu médico.</p>
+        <p class="muted small">Incluye un resumen, la gráfica de hora programada vs. hora real de cada medicamento, el detalle por día y, si quieres, las fotos de las recetas. Ideal para imprimir o enviar a tu médico.</p>
         <div class="field">
           <span>Periodo</span>
           <div class="seg" id="pdf-range">
@@ -378,6 +399,10 @@
           <span>Incluir tabla día por día</span>
           <input type="checkbox" id="pdf-table" checked>
         </label>
+        <label class="row-toggle" id="pdf-photos-row">
+          <span>Incluir fotos de las recetas</span>
+          <input type="checkbox" id="pdf-photos" checked>
+        </label>
         <div class="action-buttons">
           <button class="btn full" id="pdf-share">🖨 Imprimir o compartir</button>
           <button class="btn ghost full" id="pdf-download">⬇ Descargar PDF</button>
@@ -387,10 +412,28 @@
     </div>
   </div>
 
+  <!-- Visor de fotos de la receta -->
+  <div class="rx-viewer hidden" id="rx-viewer" role="dialog" aria-label="Foto de la receta">
+    <div class="rx-bar">
+      <button class="link light" id="rx-close">✕ Cerrar</button>
+      <span id="rx-caption"></span>
+      <button class="link light" id="rx-share">Compartir</button>
+    </div>
+    <div class="rx-stage">
+      <button class="rx-nav" id="rx-prev" aria-label="Anterior">‹</button>
+      <img id="rx-img" alt="Foto de la receta médica">
+      <button class="rx-nav" id="rx-next" aria-label="Siguiente">›</button>
+    </div>
+    <div class="rx-bar bottom">
+      <button class="btn danger" id="rx-del">Quitar esta foto</button>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
 
   <script src="app.js"></script>
   <script src="reports.js"></script>
   <script src="pdf.js"></script>
+  <script src="photos.js"></script>
 </body>
 </html>

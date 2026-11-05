@@ -8,6 +8,9 @@ App web instalable (PWA) para recordar tomar tus medicinas a tiempo, inspirada e
 - **Recordatorios**: notificación con botones “Tomada / Posponer”, alarma en pantalla con sonido y vibración.
 - **Medicamentos**: nombre, concentración, forma, cantidad por toma, color, varios horarios,
   frecuencia (diaria, ciertos días de la semana o cada X días), fechas de inicio/fin, indicaciones y notas.
+- **Receta médica**: en cada medicamento puedes tomar o subir fotos de la receta, con el nombre del médico
+  y la fecha. Se ven a pantalla completa, se pueden compartir y se incluyen (opcional) al final del PDF.
+  Se guardan en el teléfono (IndexedDB), comprimidas, y van dentro de la copia de seguridad.
 - **Inventario**: descuenta al tomar y avisa cuando quedan pocas unidades.
 - **Progreso**: cumplimiento de 7 y 30 días, racha, gráfica de 14 días, cumplimiento por medicamento e historial.
 - **Reportes**: gráfica de **hora programada vs. hora real** de cada toma (por medicamento y horario,

@@ -6,7 +6,7 @@ const PDF_COLORS = {
   brand: [15, 157, 138], plan: [42, 120, 214], real: [235, 104, 52],
   ok: [21, 115, 71], late: [178, 106, 0], early: [28, 92, 171], miss: [180, 35, 24]
 };
-const pdfOpts = { days: 30, medIds: null, table: true };
+const pdfOpts = { days: 30, medIds: null, table: true, photos: true };
 
 /* ---------- Carga de la librería (solo cuando se necesita) ---------- */
 
@@ -51,7 +51,15 @@ function summarize(points) {
 
 /* ---------- Generación ---------- */
 
-async function buildReportPdf({ days, medIds, table }) {
+function rxDescription(med) {
+  const rx = med.rx || {};
+  const parts = [];
+  if (rx.doctor) parts.push(`Recetado por ${rx.doctor}`);
+  if (rx.date) parts.push(`${rx.doctor ? "el" : "Receta del"} ${parseYmd(rx.date).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" })}`);
+  return parts.join(" ");
+}
+
+async function buildReportPdf({ days, medIds, table, photos }) {
   const JsPDF = await loadJsPdf();
   const doc = new JsPDF({ unit: "mm", format: "a4" });
   const PW = 210, PH = 297, ML = 15, MR = 15, CW = PW - ML - MR, BOTTOM = PH - 18;
@@ -138,6 +146,8 @@ async function buildReportPdf({ days, medIds, table }) {
     const details = [doseText(med), med.food, freqText(med), med.paused ? "En pausa" : "", med.notes].filter(Boolean).join(" · ");
     text(details, ML, y);
     y += 5;
+    const rxLine = rxDescription(med);
+    if (rxLine) { text(rxLine, ML, y); y += 5; }
     font(9.5, "normal");
     text(s.total
       ? `Tomadas: ${s.taken} de ${s.total} (${s.pctTaken}%)   ·   A tiempo: ${s.pctOnTime}%   ·   Desfase promedio: ${fmtDiff(s.avg)}   ·   Omitidas o sin registrar: ${s.missed}`
@@ -150,6 +160,34 @@ async function buildReportPdf({ days, medIds, table }) {
       if (table) y = drawPdfTable(doc, points, y, { ML, CW, BOTTOM });
     }
     y += 4;
+  }
+
+  /* Anexo: fotos de las recetas (una por página para que se lean bien) */
+  if (photos) {
+    for (const med of meds) {
+      const ids = med.rx?.photoIds || [];
+      for (let k = 0; k < ids.length; k++) {
+        const ph = await rxPhotoForPdf(ids[k]).catch(() => null);
+        if (!ph) continue;
+        doc.addPage();
+        y = 16;
+        font(14, "bold");
+        text(`Receta médica: ${med.name}${med.strength ? " " + med.strength : ""}`, ML, y);
+        y += 6;
+        font(9.5, "normal", PDF_COLORS.muted);
+        const sub = [rxDescription(med), ids.length > 1 ? `Foto ${k + 1} de ${ids.length}` : ""].filter(Boolean).join(" · ");
+        if (sub) { text(sub, ML, y); y += 5; }
+        y += 2;
+        const maxW = CW, maxH = BOTTOM - y;
+        const sc = Math.min(maxW / ph.w, maxH / ph.h);
+        const w = ph.w * sc, h = ph.h * sc;
+        const x = ML + (CW - w) / 2;
+        doc.addImage(ph.data, "JPEG", x, y, w, h, undefined, "FAST");
+        color(PDF_COLORS.line, "draw");
+        doc.setLineWidth(0.3);
+        doc.rect(x, y, w, h);
+      }
+    }
   }
 
   /* Pie de página */
@@ -291,12 +329,16 @@ function openPdfSheet() {
     list.appendChild(lab);
   });
   document.getElementById("pdf-table").checked = pdfOpts.table;
+  const anyRx = state.meds.some(m => m.rx?.photoIds?.length);
+  document.getElementById("pdf-photos-row").classList.toggle("hidden", !anyRx);
+  document.getElementById("pdf-photos").checked = pdfOpts.photos;
   document.getElementById("pdf-sheet").classList.remove("hidden");
 }
 
 function readPdfOpts() {
   pdfOpts.medIds = [...document.querySelectorAll("#pdf-meds input:checked")].map(i => i.value);
   pdfOpts.table = document.getElementById("pdf-table").checked;
+  pdfOpts.photos = document.getElementById("pdf-photos").checked;
   if (!pdfOpts.medIds.length) { toast("Elige al menos un medicamento"); return false; }
   return true;
 }
