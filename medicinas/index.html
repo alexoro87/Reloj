@@ -183,9 +183,10 @@
           <button class="btn ghost" id="btn-test-notif">Probar</button>
         </div>
         <p class="muted small">
-          Consejo: instala la app en tu pantalla de inicio (menú del navegador →
+          <span class="web-only">Consejo: instala la app en tu pantalla de inicio (menú del navegador →
           “Agregar a pantalla de inicio”) y déjala abierta en segundo plano para
-          que los avisos lleguen a tiempo.
+          que los avisos lleguen a tiempo. Para alarmas garantizadas usa la app de Android.</span>
+          <span class="native-only">Si tu teléfono tiene «ahorro de batería» agresivo, quita la restricción de batería para MediHora.</span>
         </p>
       </div>
 
@@ -319,9 +320,14 @@
         <div class="card inner">
           <div class="rx-head">
             <strong>📄 Receta médica</strong>
-            <label class="btn ghost small">📷 Agregar foto
-              <input type="file" id="rx-input" accept="image/*" multiple hidden>
-            </label>
+            <div class="btn-row" style="margin:0">
+              <label class="btn ghost small">📷 Tomar foto
+                <input type="file" id="rx-camera" accept="image/*" capture="environment" hidden>
+              </label>
+              <label class="btn ghost small">🖼 Galería
+                <input type="file" id="rx-input" accept="image/*" multiple hidden>
+              </label>
+            </div>
           </div>
           <p class="muted small" id="rx-empty">Toma una foto de la receta o elígela de tu galería. Se guarda solo en este teléfono.</p>
           <div class="rx-thumbs" id="rx-thumbs"></div>
@@ -431,6 +437,8 @@
 
   <div id="toast" class="toast hidden"></div>
 
+  <script src="vendor/capacitor.js"></script>
+  <script src="native.js"></script>
   <script src="app.js"></script>
   <script src="reports.js"></script>
   <script src="pdf.js"></script>

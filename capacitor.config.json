@@ -1,0 +1,15 @@
+{
+  "appId": "com.alexoro.medihora",
+  "appName": "MediHora",
+  "webDir": "medicinas",
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_medihora",
+      "iconColor": "#0f9d8a",
+      "sound": "alarma.wav"
+    }
+  }
+}

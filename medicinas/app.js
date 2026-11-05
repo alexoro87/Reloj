@@ -35,6 +35,7 @@ function load() {
 function save() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
   catch (e) { toast("No se pudo guardar: " + e.message); }
+  if (NATIVE) nativeReschedule();
 }
 
 // Borra marcas de avisos antiguas para que el almacenamiento no crezca sin fin
@@ -171,7 +172,7 @@ function snooze(key) {
 let swReg = null;
 
 async function registerSW() {
-  if (!("serviceWorker" in navigator)) return;
+  if (NATIVE || !("serviceWorker" in navigator)) return;
   try {
     swReg = await navigator.serviceWorker.register("sw.js");
     navigator.serviceWorker.addEventListener("message", ev => {
@@ -189,6 +190,7 @@ function handleExternalAction(act, key) {
 }
 
 async function notify(title, body, tag, actions) {
+  if (NATIVE) return nativeNotifyNow(title, body, tag);
   if (!("Notification" in window) || Notification.permission !== "granted") return false;
   const opts = {
     body, tag, renotify: true, requireInteraction: true,
@@ -208,6 +210,7 @@ async function notify(title, body, tag, actions) {
 }
 
 async function closeNotification(tag) {
+  if (NATIVE) return nativeClear(tag);
   try {
     const reg = swReg || (await navigator.serviceWorker?.ready);
     const list = await reg?.getNotifications({ tag });
@@ -237,6 +240,7 @@ function checkReminders() {
 
   for (const d of fresh) {
     state.notified[`${d.key}@${d.fireAt}`] = true;
+    if (NATIVE) continue; // en la app nativa la alarma ya la lanzó el sistema
     const extra = [d.med.food, d.med.notes].filter(Boolean).join(" · ");
     notify(
       `💊 ${d.med.name}${d.med.strength ? " " + d.med.strength : ""}`,
@@ -252,6 +256,7 @@ function checkReminders() {
 /* Si el navegador soporta disparadores programados (experimental), los usamos
    para que lleguen avisos aunque la app esté cerrada. */
 async function scheduleFutureNotifications() {
+  if (NATIVE) return nativeReschedule();
   if (!("showTrigger" in Notification.prototype) || typeof TimestampTrigger === "undefined") return;
   if (Notification.permission !== "granted" || !swReg) return;
   const now = new Date();
@@ -315,7 +320,7 @@ function showAlarm(list) {
       </div>
     </div>`).join("");
   el.classList.remove("hidden");
-  if (!beepTimer && state.settings.sound) {
+  if (!beepTimer && state.settings.sound && !NATIVE) {
     beepOnce();
     beepTimer = setInterval(beepOnce, 4000);
     setTimeout(stopBeep, 60000); // suena como máximo 1 minuto
@@ -510,6 +515,7 @@ function renderProgress() {
 }
 
 function renderNotifUI() {
+  if (NATIVE) return renderNativeNotifUI();
   const supported = "Notification" in window;
   const perm = supported ? Notification.permission : "unsupported";
   const banner = document.getElementById("notif-banner");
@@ -735,7 +741,30 @@ function onAction(act) {
 
 /* ================= Permisos / ajustes ================= */
 
+function renderNativeNotifUI() {
+  const banner = document.getElementById("notif-banner");
+  banner.classList.toggle("hidden", !(nativePerm !== "granted" && state.meds.length));
+  banner.querySelector("span").textContent = nativePerm === "denied"
+    ? "Las alarmas están bloqueadas. Actívalas en Ajustes del teléfono → Apps → MediHora → Notificaciones."
+    : "Activa las alarmas para que suenen a la hora de cada toma.";
+  document.getElementById("btn-enable-notif").classList.toggle("hidden", nativePerm === "denied");
+  const st = document.getElementById("notif-status");
+  st.textContent = nativePerm === "granted"
+    ? (nativeExact === "granted"
+        ? "✅ Alarmas activadas. Sonarán aunque la app esté cerrada."
+        : "⚠️ Alarmas activadas, pero sin «Alarmas y recordatorios» pueden llegar con retraso. Toca «Activar» para permitirlo.")
+    : nativePerm === "denied"
+      ? "❌ Bloqueadas. Actívalas en Ajustes del teléfono → Apps → MediHora → Notificaciones."
+      : "Aún no has dado permiso.";
+  document.getElementById("btn-enable-notif-2").classList.toggle("hidden", nativePerm === "granted" && nativeExact === "granted");
+}
+
 async function askNotifPermission() {
+  if (NATIVE) {
+    if (nativePerm === "granted") { await nativeAskExact(); await nativeRefreshPerm(); }
+    else await nativeRequestPermission();
+    return;
+  }
   if (!("Notification" in window)) { toast("Tu navegador no admite notificaciones"); return; }
   const p = await Notification.requestPermission();
   renderNotifUI();
@@ -746,6 +775,11 @@ async function exportData() {
   toast("Preparando copia…");
   const photos = await rxExportAll();
   const blob = new Blob([JSON.stringify({ ...state, photos })], { type: "application/json" });
+  if (NATIVE) {
+    try { await nativeShareBlob(blob, `medihora-${ymd(new Date())}.json`, "Copia de seguridad de MediHora"); }
+    catch (e) { toast("No se pudo exportar: " + e.message); }
+    return;
+  }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = `medihora-${ymd(new Date())}.json`;
@@ -872,6 +906,11 @@ function bind() {
   document.getElementById("btn-enable-notif").onclick = askNotifPermission;
   document.getElementById("btn-enable-notif-2").onclick = askNotifPermission;
   document.getElementById("btn-test-notif").onclick = async () => {
+    if (NATIVE) {
+      const ok = await nativeNotifyNow("💊 Prueba de MediHora", "Así sonarán tus alarmas.", "test", 5000);
+      toast(ok ? "La alarma de prueba sonará en 5 segundos. Puedes cerrar la app." : "Activa primero las alarmas");
+      return;
+    }
     unlockAudio(); beepOnce();
     const ok = await notify("💊 Prueba de MediHora", "Así se verán tus recordatorios.", "test");
     if (!ok) toast("Activa primero las notificaciones");
@@ -921,5 +960,6 @@ bind();
 loadSettingsUI();
 renderAll();
 registerSW().then(() => { handleUrlAction(); scheduleFutureNotifications(); });
+if (NATIVE) nativeInit();
 checkReminders();
 setInterval(tick, 20000);

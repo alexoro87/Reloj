@@ -1,0 +1,72 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace = "com.alexoro.medihora"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "com.alexoro.medihora"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        // En GitHub Actions cada compilación sube el número de versión para que se instale encima de la anterior
+        versionCode (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger()
+        versionName "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    // Firma con una llave fija (si está configurada) para que cada versión nueva se instale
+    // encima de la anterior sin perder datos. La llave NO se guarda en el repositorio:
+    // GitHub Actions la crea a partir de los secretos MEDIHORA_KEYSTORE_BASE64 y MEDIHORA_KEYSTORE_PASSWORD.
+    def ksFile = file(System.getenv("MEDIHORA_KEYSTORE") ?: "medihora.keystore")
+    def hasKey = ksFile.exists() && System.getenv("MEDIHORA_KEYSTORE_PASSWORD")
+    signingConfigs {
+        if (hasKey) {
+            medihora {
+                storeFile ksFile
+                storePassword System.getenv("MEDIHORA_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("MEDIHORA_KEY_ALIAS") ?: "medihora"
+                keyPassword System.getenv("MEDIHORA_KEY_PASSWORD") ?: System.getenv("MEDIHORA_KEYSTORE_PASSWORD")
+            }
+        }
+    }
+    buildTypes {
+        release {
+            // Sin llave configurada se usa la llave de depuración (sirve para probar)
+            signingConfig hasKey ? signingConfigs.medihora : signingConfigs.debug
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

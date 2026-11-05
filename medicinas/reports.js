@@ -325,6 +325,11 @@ function exportReportCSV() {
     }
   }
   const csv = "﻿" + rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+  if (NATIVE) {
+    nativeShareBlob(new Blob([csv], { type: "text/csv" }), `medihora-reporte-${rep.days}d-${ymd(today)}.csv`, "Reporte de tomas")
+      .catch(e => toast("No se pudo exportar: " + e.message));
+    return;
+  }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   a.download = `medihora-reporte-${rep.days}d-${ymd(today)}.csv`;

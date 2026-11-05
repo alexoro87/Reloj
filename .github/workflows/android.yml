@@ -1,0 +1,80 @@
+name: App Android (APK)
+
+on:
+  push:
+    paths:
+      - "medicinas/**"
+      - "android/**"
+      - "package.json"
+      - "package-lock.json"
+      - "capacitor.config.json"
+      - ".github/workflows/android.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Copiar la app web al proyecto Android
+        run: npx cap sync android
+
+      - name: Preparar llave de firma (desde los secretos del repositorio)
+        env:
+          KEYSTORE_B64: ${{ secrets.MEDIHORA_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > android/app/medihora.keystore
+            echo "Usando la llave fija de MediHora."
+          else
+            echo "::warning::No hay llave configurada: el APK se firma con una llave temporal. Para actualizar sin perder datos configura los secretos MEDIHORA_KEYSTORE_BASE64 y MEDIHORA_KEYSTORE_PASSWORD."
+          fi
+
+      - name: Compilar APK
+        working-directory: android
+        env:
+          MEDIHORA_KEYSTORE_PASSWORD: ${{ secrets.MEDIHORA_KEYSTORE_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Renombrar APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk MediHora.apk
+
+      - name: Subir APK como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: MediHora-apk
+          path: MediHora.apk
+
+      # Publica el APK en "Releases" para descargarlo fácil desde el teléfono
+      - name: Publicar en Releases
+        if: github.event_name == 'workflow_dispatch' || github.ref_name == github.event.repository.default_branch || startsWith(github.ref_name, 'claude/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: medihora-v1.0.${{ github.run_number }}
+          name: MediHora 1.0.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          prerelease: ${{ github.ref_name != github.event.repository.default_branch }}
+          body: |
+            App de Android de MediHora (rama `${{ github.ref_name }}`).
+            Descarga **MediHora.apk** desde el teléfono e instálala.
+          files: MediHora.apk

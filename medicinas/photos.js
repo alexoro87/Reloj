@@ -220,6 +220,10 @@ async function rxShareCurrent() {
   const rec = await rxGet(rxViewer.ids[rxViewer.i]);
   if (!rec) return;
   const file = new File([rec.blob], `receta-${rxViewer.i + 1}.jpg`, { type: "image/jpeg" });
+  if (NATIVE) {
+    nativeShareBlob(rec.blob, file.name, "Receta médica").catch(e => toast("No se pudo compartir: " + e.message));
+    return;
+  }
   if (navigator.canShare?.({ files: [file] })) {
     try { await navigator.share({ files: [file], title: "Receta médica" }); } catch { /* cancelado */ }
   } else {
@@ -262,6 +266,7 @@ async function rxPhotoForPdf(id) {
 /* ---------- Eventos ---------- */
 
 document.getElementById("rx-input").onchange = e => { rxAddFiles(e.target.files); e.target.value = ""; };
+document.getElementById("rx-camera").onchange = e => { rxAddFiles(e.target.files); e.target.value = ""; };
 document.getElementById("rx-thumbs").onclick = e => {
   const b = e.target.closest(".rx-thumb");
   if (!b) return;

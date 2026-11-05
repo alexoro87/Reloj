@@ -351,6 +351,11 @@ async function runPdf(mode) {
   try {
     const { doc, filename } = await buildReportPdf(pdfOpts);
     const blob = doc.output("blob");
+    if (NATIVE) {
+      await nativeShareBlob(blob, filename, "Reporte de medicinas");
+      document.getElementById("pdf-sheet").classList.add("hidden");
+      return;
+    }
     if (mode === "share") {
       const file = new File([blob], filename, { type: "application/pdf" });
       if (navigator.canShare?.({ files: [file] })) {

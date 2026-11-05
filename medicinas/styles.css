@@ -52,6 +52,9 @@ h3 { margin: 0 0 12px; font-size: 16px; }
 .small { font-size: 13px; }
 .center { text-align: center; }
 .hidden { display: none !important; }
+.native-only { display: none; }
+html.native .native-only { display: inline; }
+html.native .web-only { display: none; }
 
 .view { display: none; }
 .view.active { display: block; }
