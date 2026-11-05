@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f9d8a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="MediHora">
+  <title>MediHora</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Aviso de toma pendiente (en la app) -->
+  <div id="alarm" class="alarm hidden" role="alertdialog" aria-live="assertive">
+    <div class="alarm-card">
+      <div class="alarm-title">⏰ Hora de tu medicina</div>
+      <div id="alarm-list"></div>
+      <button class="btn ghost full" id="alarm-close">Cerrar</button>
+    </div>
+  </div>
+
+  <main id="app">
+
+    <!-- HOY -->
+    <section id="view-today" class="view active">
+      <header class="top">
+        <div>
+          <div class="muted small" id="greeting">Hola</div>
+          <h1 id="today-title">Hoy</h1>
+        </div>
+        <button class="icon-btn" id="btn-go-today" title="Ir a hoy">Hoy</button>
+      </header>
+
+      <div class="week" id="week"></div>
+
+      <div class="summary card">
+        <div class="ring" id="ring">
+          <svg viewBox="0 0 36 36">
+            <circle class="ring-bg" cx="18" cy="18" r="15.9"></circle>
+            <circle class="ring-fg" id="ring-fg" cx="18" cy="18" r="15.9" stroke-dasharray="0 100"></circle>
+          </svg>
+          <span id="ring-text">0%</span>
+        </div>
+        <div>
+          <div class="summary-big" id="summary-big">0 de 0 tomas</div>
+          <div class="muted" id="summary-sub">Sin medicinas programadas</div>
+        </div>
+      </div>
+
+      <div id="notif-banner" class="banner hidden">
+        <span>Activa las notificaciones para recibir los recordatorios.</span>
+        <button class="btn small" id="btn-enable-notif">Activar</button>
+      </div>
+
+      <div id="today-list"></div>
+    </section>
+
+    <!-- MEDICAMENTOS -->
+    <section id="view-meds" class="view">
+      <header class="top">
+        <h1>Medicamentos</h1>
+      </header>
+      <div id="meds-list"></div>
+      <button class="btn full" id="btn-add-med-2">+ Agregar medicamento</button>
+    </section>
+
+    <!-- PROGRESO -->
+    <section id="view-progress" class="view">
+      <header class="top">
+        <h1>Progreso</h1>
+      </header>
+      <div class="stats">
+        <div class="card stat"><div class="stat-num" id="st-7">–</div><div class="muted small">Cumplimiento 7 días</div></div>
+        <div class="card stat"><div class="stat-num" id="st-30">–</div><div class="muted small">Cumplimiento 30 días</div></div>
+        <div class="card stat"><div class="stat-num" id="st-streak">0</div><div class="muted small">Días seguidos al 100%</div></div>
+      </div>
+      <div class="card">
+        <h3>Últimos 14 días</h3>
+        <div class="bars" id="bars"></div>
+      </div>
+      <div class="card">
+        <h3>Por medicamento (30 días)</h3>
+        <div id="per-med"></div>
+      </div>
+      <div class="card">
+        <h3>Historial reciente</h3>
+        <div id="history"></div>
+      </div>
+    </section>
+
+    <!-- AJUSTES -->
+    <section id="view-settings" class="view">
+      <header class="top">
+        <h1>Ajustes</h1>
+      </header>
+
+      <div class="card">
+        <label class="field">
+          <span>Tu nombre</span>
+          <input id="set-name" type="text" placeholder="Opcional">
+        </label>
+        <label class="row-toggle">
+          <span>Sonido de alarma (con la app abierta)</span>
+          <input id="set-sound" type="checkbox">
+        </label>
+        <label class="field">
+          <span>Posponer recordatorio</span>
+          <select id="set-snooze">
+            <option value="5">5 minutos</option>
+            <option value="10">10 minutos</option>
+            <option value="15">15 minutos</option>
+            <option value="30">30 minutos</option>
+            <option value="60">1 hora</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="card">
+        <h3>Notificaciones</h3>
+        <p class="muted small" id="notif-status"></p>
+        <div class="btn-row">
+          <button class="btn" id="btn-enable-notif-2">Activar notificaciones</button>
+          <button class="btn ghost" id="btn-test-notif">Probar</button>
+        </div>
+        <p class="muted small">
+          Consejo: instala la app en tu pantalla de inicio (menú del navegador →
+          “Agregar a pantalla de inicio”) y déjala abierta en segundo plano para
+          que los avisos lleguen a tiempo.
+        </p>
+      </div>
+
+      <div class="card">
+        <h3>Copia de seguridad</h3>
+        <p class="muted small">Tus datos se guardan solo en este teléfono. Exporta una copia de vez en cuando.</p>
+        <div class="btn-row">
+          <button class="btn ghost" id="btn-export">Exportar</button>
+          <label class="btn ghost">Importar<input type="file" id="file-import" accept="application/json" hidden></label>
+        </div>
+      </div>
+
+      <div class="card">
+        <button class="btn danger full" id="btn-wipe">Borrar todos los datos</button>
+      </div>
+
+      <p class="muted small center">MediHora no sustituye el consejo de tu médico o farmacéutico.</p>
+    </section>
+  </main>
+
+  <!-- Botón flotante -->
+  <button class="fab" id="btn-add-med" aria-label="Agregar medicamento">+</button>
+
+  <!-- Barra inferior -->
+  <nav class="tabs">
+    <button data-view="today" class="active"><span>📅</span>Hoy</button>
+    <button data-view="meds"><span>💊</span>Medicinas</button>
+    <button data-view="progress"><span>📈</span>Progreso</button>
+    <button data-view="settings"><span>⚙️</span>Ajustes</button>
+  </nav>
+
+  <!-- Hoja: agregar / editar medicamento -->
+  <div class="sheet-backdrop hidden" id="sheet">
+    <form class="sheet" id="med-form" autocomplete="off">
+      <div class="sheet-head">
+        <button type="button" class="link" id="btn-cancel">Cancelar</button>
+        <strong id="sheet-title">Nuevo medicamento</strong>
+        <button type="submit" class="link strong">Guardar</button>
+      </div>
+
+      <div class="sheet-body">
+        <label class="field">
+          <span>Nombre *</span>
+          <input name="name" required placeholder="Ej. Metformina">
+        </label>
+
+        <div class="grid2">
+          <label class="field">
+            <span>Concentración</span>
+            <input name="strength" placeholder="Ej. 500 mg">
+          </label>
+          <label class="field">
+            <span>Forma</span>
+            <select name="form">
+              <option value="comprimido">Comprimido</option>
+              <option value="cápsula">Cápsula</option>
+              <option value="gota">Gotas</option>
+              <option value="ml">Jarabe (ml)</option>
+              <option value="inyección">Inyección</option>
+              <option value="inhalación">Inhalador</option>
+              <option value="sobre">Sobre</option>
+              <option value="aplicación">Crema / pomada</option>
+              <option value="unidad">Otro</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="field">
+          <span>Cantidad por toma</span>
+          <input name="qty" type="number" min="0.25" step="0.25" value="1">
+        </label>
+
+        <div class="field">
+          <span>Color</span>
+          <div class="colors" id="colors"></div>
+        </div>
+
+        <div class="field">
+          <span>Frecuencia</span>
+          <div class="seg" id="freq-seg">
+            <button type="button" data-freq="daily" class="active">Todos los días</button>
+            <button type="button" data-freq="weekdays">Días de la semana</button>
+            <button type="button" data-freq="interval">Cada X días</button>
+          </div>
+        </div>
+
+        <div class="field hidden" id="weekdays-field">
+          <span>¿Qué días?</span>
+          <div class="days" id="days"></div>
+        </div>
+
+        <label class="field hidden" id="interval-field">
+          <span>Cada cuántos días</span>
+          <input name="every" type="number" min="2" max="90" value="2">
+        </label>
+
+        <div class="field">
+          <span>Horarios</span>
+          <div id="times"></div>
+          <button type="button" class="btn ghost small" id="btn-add-time">+ Agregar horario</button>
+        </div>
+
+        <div class="grid2">
+          <label class="field">
+            <span>Desde</span>
+            <input name="startDate" type="date" required>
+          </label>
+          <label class="field">
+            <span>Hasta (opcional)</span>
+            <input name="endDate" type="date">
+          </label>
+        </div>
+
+        <label class="field">
+          <span>Indicaciones</span>
+          <select name="food">
+            <option value="">Sin indicación</option>
+            <option value="Antes de comer">Antes de comer</option>
+            <option value="Con comida">Con comida</option>
+            <option value="Después de comer">Después de comer</option>
+            <option value="En ayunas">En ayunas</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Notas</span>
+          <textarea name="notes" rows="2" placeholder="Ej. Tomar con un vaso de agua"></textarea>
+        </label>
+
+        <div class="card inner">
+          <label class="row-toggle">
+            <span>Controlar inventario</span>
+            <input name="stockOn" type="checkbox">
+          </label>
+          <div class="grid2" id="stock-fields">
+            <label class="field">
+              <span>Me quedan</span>
+              <input name="stock" type="number" min="0" step="0.25" value="30">
+            </label>
+            <label class="field">
+              <span>Avisar cuando queden</span>
+              <input name="stockAlert" type="number" min="0" step="1" value="5">
+            </label>
+          </div>
+        </div>
+
+        <button type="button" class="btn danger full hidden" id="btn-delete-med">Eliminar medicamento</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Hoja de acciones de una toma -->
+  <div class="sheet-backdrop hidden" id="action-sheet">
+    <div class="sheet small-sheet">
+      <div class="sheet-body">
+        <div id="action-info"></div>
+        <div class="action-buttons">
+          <button class="btn full" data-act="taken">✓ Tomada</button>
+          <button class="btn ghost full" data-act="taken-other">✓ Tomada a otra hora…</button>
+          <button class="btn warn full" data-act="snooze">⏱ Posponer</button>
+          <button class="btn ghost full" data-act="skipped">✕ Omitir</button>
+          <button class="btn ghost full" data-act="undo">↺ Deshacer</button>
+          <button class="btn ghost full" data-act="close">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
