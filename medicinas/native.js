@@ -7,7 +7,9 @@ const CAP = window.capacitorExports;
 const NATIVE = !!(CAP?.Capacitor?.isNativePlatform?.());
 const NATIVE_MAX_PENDING = 60;   // iOS admite 64 notificaciones programadas
 const NATIVE_DAYS_AHEAD = 14;
-const NATIVE_CHANNEL = "tomas-alarma";
+const NATIVE_CHANNEL = "tomas-recordatorio";
+const NATIVE_SOUND = "recordatorio.wav";
+const NATIVE_OLD_CHANNELS = ["tomas-alarma"]; // canal anterior (sonido de alarma fuerte)
 
 let LN = null, FS = null, SHARE = null, APP = null;
 let nativePerm = "prompt";       // granted | denied | prompt
@@ -32,11 +34,13 @@ async function nativeInit() {
   if (!NATIVE) return;
   try {
     if (CAP.Capacitor.getPlatform() === "android") {
+      // En Android el sonido de un canal no se puede cambiar: se crea uno nuevo y se borra el anterior
+      for (const id of NATIVE_OLD_CHANNELS) { try { await LN.deleteChannel({ id }); } catch { /* no existía */ } }
       await LN.createChannel({
-        id: NATIVE_CHANNEL, name: "Alarmas de medicinas",
-        description: "Avisos a la hora de cada toma",
-        importance: 5, visibility: 1, vibration: true, lights: true, lightColor: "#0f9d8a",
-        sound: "alarma.wav"
+        id: NATIVE_CHANNEL, name: "Recordatorios de medicinas",
+        description: "Aviso suave a la hora de cada toma",
+        importance: 4, visibility: 1, vibration: true, lights: true, lightColor: "#0f9d8a",
+        sound: NATIVE_SOUND
       });
     }
     await LN.registerActionTypes({
@@ -81,7 +85,7 @@ async function nativeRequestPermission() {
     if (nativePerm === "granted") await nativeAskExact();
   } catch (e) { toast("No se pudo pedir el permiso: " + e.message); }
   await nativeRefreshPerm();
-  if (nativePerm === "granted") { toast("Alarmas activadas"); nativeReschedule(); }
+  if (nativePerm === "granted") { toast("Recordatorios activados"); nativeReschedule(); }
 }
 
 // Android 12+: sin este permiso las alarmas pueden llegar con minutos de retraso
@@ -132,11 +136,11 @@ async function nativeRescheduleNow() {
       const extra = [d.med.food, d.med.notes].filter(Boolean).join(" · ");
       return {
         id,
-        title: `💊 ${d.med.name}${d.med.strength ? " " + d.med.strength : ""}`,
-        body: `${d.time} — ${doseText(d.med)}${extra ? " · " + extra : ""}`,
+        title: "💊 Es hora de tu medicina",
+        body: `${d.med.name}${d.med.strength ? " " + d.med.strength : ""} · ${doseText(d.med)}${extra ? " · " + extra : ""}`,
         schedule: { at: new Date(d.at), allowWhileIdle: true },
         channelId: NATIVE_CHANNEL,
-        sound: "alarma.wav",
+        sound: NATIVE_SOUND,
         smallIcon: "ic_stat_medihora",
         iconColor: "#0f9d8a",
         actionTypeId: "DOSE",
@@ -161,7 +165,7 @@ async function nativeNotifyNow(title, body, tag, delayMs = 0) {
   try {
     const n = {
       id: nativeId("now|" + tag), title, body,
-      channelId: NATIVE_CHANNEL, sound: "alarma.wav",
+      channelId: NATIVE_CHANNEL, sound: NATIVE_SOUND,
       smallIcon: "ic_stat_medihora", iconColor: "#0f9d8a", autoCancel: true,
       extra: { kind: "info" }
     };

@@ -16,9 +16,10 @@
 <body>
 
   <!-- Aviso de toma pendiente (en la app) -->
-  <div id="alarm" class="alarm hidden" role="alertdialog" aria-live="assertive">
+  <div id="alarm" class="alarm hidden" role="alertdialog" aria-live="polite">
     <div class="alarm-card">
-      <div class="alarm-title">⏰ Hora de tu medicina</div>
+      <div class="alarm-title">💊 Es hora de tu medicina</div>
+      <p class="alarm-sub">Cuando la tomes, márcala aquí.</p>
       <div id="alarm-list"></div>
       <button class="btn ghost full" id="alarm-close">Cerrar</button>
     </div>
@@ -160,7 +161,7 @@
           <input id="set-name" type="text" placeholder="Opcional">
         </label>
         <label class="row-toggle">
-          <span>Sonido de alarma (con la app abierta)</span>
+          <span>Sonido de aviso (con la app abierta)</span>
           <input id="set-sound" type="checkbox">
         </label>
         <label class="field">
@@ -221,146 +222,207 @@
 
   <!-- Hoja: agregar / editar medicamento -->
   <div class="sheet-backdrop hidden" id="sheet">
-    <form class="sheet" id="med-form" autocomplete="off">
+    <form class="sheet" id="med-form" autocomplete="off" novalidate>
       <div class="sheet-head">
         <button type="button" class="link" id="btn-cancel">Cancelar</button>
         <strong id="sheet-title">Nuevo medicamento</strong>
-        <button type="submit" class="link strong">Guardar</button>
+        <button type="submit" class="link strong" id="btn-save-top">Guardar</button>
+      </div>
+      <div class="steps" id="steps">
+        <button type="button" data-step="0"><i>1</i><span>Medicina</span></button>
+        <button type="button" data-step="1"><i>2</i><span>Frecuencia</span></button>
+        <button type="button" data-step="2"><i>3</i><span>Duración</span></button>
+        <button type="button" data-step="3"><i>4</i><span>Extras</span></button>
       </div>
 
       <div class="sheet-body">
-        <label class="field">
-          <span>Nombre *</span>
-          <input name="name" required placeholder="Ej. Metformina">
-        </label>
 
-        <div class="grid2">
+        <!-- PASO 1: medicamento -->
+        <section class="step" data-panel="0">
+          <h2 class="step-q">¿Qué medicamento es?</h2>
           <label class="field">
-            <span>Concentración</span>
-            <input name="strength" placeholder="Ej. 500 mg">
+            <span>Nombre</span>
+            <input name="name" placeholder="Ej. Amoxicilina" autocomplete="off">
           </label>
+          <div class="grid2">
+            <label class="field">
+              <span>Concentración</span>
+              <input name="strength" placeholder="Ej. 500 mg">
+            </label>
+            <label class="field">
+              <span>Forma</span>
+              <select name="form">
+                <option value="comprimido">Comprimido</option>
+                <option value="cápsula">Cápsula</option>
+                <option value="gota">Gotas</option>
+                <option value="ml">Jarabe (ml)</option>
+                <option value="inyección">Inyección</option>
+                <option value="inhalación">Inhalador</option>
+                <option value="sobre">Sobre</option>
+                <option value="aplicación">Crema / pomada</option>
+                <option value="unidad">Otro</option>
+              </select>
+            </label>
+          </div>
           <label class="field">
-            <span>Forma</span>
-            <select name="form">
-              <option value="comprimido">Comprimido</option>
-              <option value="cápsula">Cápsula</option>
-              <option value="gota">Gotas</option>
-              <option value="ml">Jarabe (ml)</option>
-              <option value="inyección">Inyección</option>
-              <option value="inhalación">Inhalador</option>
-              <option value="sobre">Sobre</option>
-              <option value="aplicación">Crema / pomada</option>
-              <option value="unidad">Otro</option>
+            <span>Cantidad por toma</span>
+            <input name="qty" type="number" min="0.25" step="0.25" value="1" inputmode="decimal">
+          </label>
+          <div class="field">
+            <span>Color</span>
+            <div class="colors" id="colors"></div>
+          </div>
+        </section>
+
+        <!-- PASO 2: cada cuánto -->
+        <section class="step" data-panel="1">
+          <h2 class="step-q">¿Cada cuánto se toma?</h2>
+          <div class="chips" id="plan-chips">
+            <button type="button" data-plan="h4">Cada 4 horas</button>
+            <button type="button" data-plan="h6">Cada 6 horas</button>
+            <button type="button" data-plan="h8">Cada 8 horas</button>
+            <button type="button" data-plan="h12">Cada 12 horas</button>
+            <button type="button" data-plan="h24">1 vez al día</button>
+            <button type="button" data-plan="d2">Cada 2 días</button>
+            <button type="button" data-plan="d3">Cada 3 días</button>
+            <button type="button" data-plan="custom">Horarios a mi medida</button>
+          </div>
+
+          <div id="plan-auto">
+            <h3 class="step-sub">¿Cuándo es la primera toma?</h3>
+            <div class="grid2">
+              <label class="field">
+                <span>Día</span>
+                <input name="firstDate" type="date">
+              </label>
+              <label class="field">
+                <span>Hora</span>
+                <input name="firstTime" type="time">
+              </label>
+            </div>
+            <p class="hint" id="plan-times-preview"></p>
+          </div>
+
+          <div id="plan-custom" class="hidden">
+            <div class="field">
+              <span>Días</span>
+              <div class="seg" id="freq-seg">
+                <button type="button" data-freq="daily" class="active">Todos los días</button>
+                <button type="button" data-freq="weekdays">Algunos días</button>
+                <button type="button" data-freq="interval">Cada X días</button>
+              </div>
+            </div>
+            <div class="field hidden" id="weekdays-field">
+              <span>¿Qué días?</span>
+              <div class="days" id="days"></div>
+            </div>
+            <label class="field hidden" id="interval-field">
+              <span>Cada cuántos días</span>
+              <input name="every" type="number" min="2" max="90" value="2">
+            </label>
+            <div class="field">
+              <span>Horarios</span>
+              <div id="times"></div>
+              <button type="button" class="btn ghost small" id="btn-add-time">+ Agregar horario</button>
+            </div>
+            <label class="field">
+              <span>Empieza el</span>
+              <input name="startDate" type="date">
+            </label>
+          </div>
+        </section>
+
+        <!-- PASO 3: por cuántos días -->
+        <section class="step" data-panel="2">
+          <h2 class="step-q">¿Por cuántos días?</h2>
+          <div class="chips" id="dur-chips">
+            <button type="button" data-dur="3">3 días</button>
+            <button type="button" data-dur="5">5 días</button>
+            <button type="button" data-dur="7">7 días</button>
+            <button type="button" data-dur="10">10 días</button>
+            <button type="button" data-dur="14">14 días</button>
+            <button type="button" data-dur="30">30 días</button>
+            <button type="button" data-dur="other">Otro</button>
+            <button type="button" data-dur="0">Uso continuo</button>
+          </div>
+          <label class="field hidden" id="dur-other">
+            <span>Número de días</span>
+            <input name="durDays" type="number" min="1" max="365" value="21" inputmode="numeric">
+          </label>
+          <div class="plan-summary" id="plan-summary" aria-live="polite"></div>
+        </section>
+
+        <!-- PASO 4: extras -->
+        <section class="step" data-panel="3">
+          <h2 class="step-q">Detalles <span class="muted small">(opcional)</span></h2>
+          <label class="field">
+            <span>Indicaciones</span>
+            <select name="food">
+              <option value="">Sin indicación</option>
+              <option value="Antes de comer">Antes de comer</option>
+              <option value="Con comida">Con comida</option>
+              <option value="Después de comer">Después de comer</option>
+              <option value="En ayunas">En ayunas</option>
             </select>
           </label>
-        </div>
 
-        <label class="field">
-          <span>Cantidad por toma</span>
-          <input name="qty" type="number" min="0.25" step="0.25" value="1">
-        </label>
-
-        <div class="field">
-          <span>Color</span>
-          <div class="colors" id="colors"></div>
-        </div>
-
-        <div class="field">
-          <span>Frecuencia</span>
-          <div class="seg" id="freq-seg">
-            <button type="button" data-freq="daily" class="active">Todos los días</button>
-            <button type="button" data-freq="weekdays">Días de la semana</button>
-            <button type="button" data-freq="interval">Cada X días</button>
-          </div>
-        </div>
-
-        <div class="field hidden" id="weekdays-field">
-          <span>¿Qué días?</span>
-          <div class="days" id="days"></div>
-        </div>
-
-        <label class="field hidden" id="interval-field">
-          <span>Cada cuántos días</span>
-          <input name="every" type="number" min="2" max="90" value="2">
-        </label>
-
-        <div class="field">
-          <span>Horarios</span>
-          <div id="times"></div>
-          <button type="button" class="btn ghost small" id="btn-add-time">+ Agregar horario</button>
-        </div>
-
-        <div class="grid2">
           <label class="field">
-            <span>Desde</span>
-            <input name="startDate" type="date" required>
+            <span>Notas</span>
+            <textarea name="notes" rows="2" placeholder="Ej. Tomar con un vaso de agua"></textarea>
           </label>
-          <label class="field">
-            <span>Hasta (opcional)</span>
-            <input name="endDate" type="date">
-          </label>
-        </div>
 
-        <label class="field">
-          <span>Indicaciones</span>
-          <select name="food">
-            <option value="">Sin indicación</option>
-            <option value="Antes de comer">Antes de comer</option>
-            <option value="Con comida">Con comida</option>
-            <option value="Después de comer">Después de comer</option>
-            <option value="En ayunas">En ayunas</option>
-          </select>
-        </label>
-
-        <label class="field">
-          <span>Notas</span>
-          <textarea name="notes" rows="2" placeholder="Ej. Tomar con un vaso de agua"></textarea>
-        </label>
-
-        <div class="card inner">
-          <div class="rx-head">
-            <strong>📄 Receta médica</strong>
-            <div class="btn-row" style="margin:0">
-              <label class="btn ghost small">📷 Tomar foto
-                <input type="file" id="rx-camera" accept="image/*" capture="environment" hidden>
+          <div class="card inner">
+            <div class="rx-head">
+              <strong>📄 Receta médica</strong>
+              <div class="btn-row" style="margin:0">
+                <label class="btn ghost small">📷 Tomar foto
+                  <input type="file" id="rx-camera" accept="image/*" capture="environment" hidden>
+                </label>
+                <label class="btn ghost small">🖼 Galería
+                  <input type="file" id="rx-input" accept="image/*" multiple hidden>
+                </label>
+              </div>
+            </div>
+            <p class="muted small" id="rx-empty">Toma una foto de la receta o elígela de tu galería. Se guarda solo en este teléfono.</p>
+            <div class="rx-thumbs" id="rx-thumbs"></div>
+            <div class="grid2">
+              <label class="field">
+                <span>Médico</span>
+                <input name="rxDoctor" placeholder="Ej. Dra. López">
               </label>
-              <label class="btn ghost small">🖼 Galería
-                <input type="file" id="rx-input" accept="image/*" multiple hidden>
+              <label class="field">
+                <span>Fecha de la receta</span>
+                <input name="rxDate" type="date">
               </label>
             </div>
           </div>
-          <p class="muted small" id="rx-empty">Toma una foto de la receta o elígela de tu galería. Se guarda solo en este teléfono.</p>
-          <div class="rx-thumbs" id="rx-thumbs"></div>
-          <div class="grid2">
-            <label class="field">
-              <span>Médico</span>
-              <input name="rxDoctor" placeholder="Ej. Dra. López">
-            </label>
-            <label class="field">
-              <span>Fecha de la receta</span>
-              <input name="rxDate" type="date">
-            </label>
-          </div>
-        </div>
 
-        <div class="card inner">
-          <label class="row-toggle">
-            <span>Controlar inventario</span>
-            <input name="stockOn" type="checkbox">
-          </label>
-          <div class="grid2" id="stock-fields">
-            <label class="field">
-              <span>Me quedan</span>
-              <input name="stock" type="number" min="0" step="0.25" value="30">
+          <div class="card inner">
+            <label class="row-toggle">
+              <span>Controlar inventario</span>
+              <input name="stockOn" type="checkbox">
             </label>
-            <label class="field">
-              <span>Avisar cuando queden</span>
-              <input name="stockAlert" type="number" min="0" step="1" value="5">
-            </label>
+            <div class="grid2" id="stock-fields">
+              <label class="field">
+                <span>Me quedan</span>
+                <input name="stock" type="number" min="0" step="0.25" value="30">
+              </label>
+              <label class="field">
+                <span>Avisar cuando queden</span>
+                <input name="stockAlert" type="number" min="0" step="1" value="5">
+              </label>
+            </div>
+            <p class="hint" id="stock-hint"></p>
           </div>
-        </div>
 
-        <button type="button" class="btn danger full hidden" id="btn-delete-med">Eliminar medicamento</button>
+          <button type="button" class="btn danger full hidden" id="btn-delete-med">Eliminar medicamento</button>
+        </section>
+      </div>
+
+      <div class="step-foot">
+        <button type="button" class="btn ghost" id="btn-step-back">Atrás</button>
+        <button type="button" class="btn" id="btn-step-next">Siguiente</button>
+        <button type="submit" class="btn hidden" id="btn-step-save">✓ Guardar</button>
       </div>
     </form>
   </div>

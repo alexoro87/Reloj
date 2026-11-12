@@ -41,6 +41,7 @@ function reportPoints(med, time, days) {
     const entry = state.log[key];
     const due = atTime(ds, time);
     if (!entry && due > now) continue; // todavía no toca
+    if (!entry && !inWindow(med, due)) continue; // fuera del periodo del tratamiento
     const [h, m] = time.split(":").map(Number);
     const plan = h * 60 + m;
     let real = null, diff = null;

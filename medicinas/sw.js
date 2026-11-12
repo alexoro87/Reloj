@@ -1,5 +1,5 @@
 /* Service worker de MediHora: funciona sin conexión y maneja los toques en las notificaciones */
-const CACHE = "medihora-v5";
+const CACHE = "medihora-v6";
 const ASSETS = ["./", "index.html", "styles.css", "app.js", "reports.js", "pdf.js", "photos.js", "native.js", "vendor/capacitor.js", "vendor/jspdf.umd.min.js", "manifest.webmanifest",
   "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png"];
 

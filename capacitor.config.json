@@ -9,7 +9,7 @@
     "LocalNotifications": {
       "smallIcon": "ic_stat_medihora",
       "iconColor": "#0f9d8a",
-      "sound": "alarma.wav"
+      "sound": "recordatorio.wav"
     }
   }
 }

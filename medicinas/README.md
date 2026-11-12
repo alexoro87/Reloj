@@ -5,9 +5,11 @@ App web instalable (PWA) para recordar tomar tus medicinas a tiempo, inspirada e
 ## Funciones
 - **Hoy**: tomas del día agrupadas por hora, anillo de progreso y tira semanal con puntos de cumplimiento.
 - **Registrar tomas**: tomada, tomada a otra hora, posponer, omitir o deshacer.
-- **Recordatorios**: notificación con botones “Tomada / Posponer”, alarma en pantalla con sonido y vibración.
-- **Medicamentos**: nombre, concentración, forma, cantidad por toma, color, varios horarios,
-  frecuencia (diaria, ciertos días de la semana o cada X días), fechas de inicio/fin, indicaciones y notas.
+- **Recordatorios**: notificación con botones “Tomada / Posponer” y un sonido suave de campanita (avisa sin asustar).
+- **Agregar medicamento en 4 pasos**: qué medicina → **cada cuánto** (cada 4/6/8/12 horas, 1 vez al día,
+  cada 2 o 3 días, u horarios a tu medida) y la hora de la primera toma → **por cuántos días** (o uso continuo)
+  → extras. La app calcula y programa todas las tomas sola (ej. cada 8 horas por 7 días = 21 tomas) y
+  muestra un resumen con la primera y la última toma y cuántas pastillas necesitarás.
 - **Receta médica**: en cada medicamento puedes tomar o subir fotos de la receta, con el nombre del médico
   y la fecha. Se ven a pantalla completa, se pueden compartir y se incluyen (opcional) al final del PDF.
   Se guardan en el teléfono (IndexedDB), comprimidas, y van dentro de la copia de seguridad.
@@ -30,7 +32,7 @@ App web instalable (PWA) para recordar tomar tus medicinas a tiempo, inspirada e
 ## App de Android (alarmas garantizadas)
 La carpeta `android/` empaqueta esta misma app con [Capacitor](https://capacitorjs.com). En la app nativa:
 - Las alarmas las programa el sistema: **suenan aunque la app esté cerrada** y después de reiniciar el teléfono.
-- Sonido de alarma propio, botones **✓ Tomada** y **⏱ Posponer** en la notificación.
+- Sonido suave de recordatorio, botones **✓ Tomada** y **⏱ Posponer** en la notificación.
 - Reportes, PDF, copias de seguridad y recetas se comparten con el menú del teléfono.
 
 ### Descargar e instalar
