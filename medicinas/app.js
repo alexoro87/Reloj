@@ -998,10 +998,12 @@ function saveMedFromForm(ev) {
 
   // Si cambió de persona y el perfil anterior era compartido, se borra de allá
   if (existing && existing.profileId !== med.profileId) syncMedDeleted(existing);
+  const removedPhotos = [...rxForm.removed];
   if (existing) Object.assign(existing, med);
   else state.meds.push(med);
   save();
   rxCommit();
+  if (removedPhotos.length) syncPhotosRemoved(existing || med, removedPhotos);
   syncMed(existing || med);
   closeSheet(true);
   renderAll();

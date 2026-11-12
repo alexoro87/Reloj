@@ -115,6 +115,10 @@ function syncLog(key) {
   if (!med || !isShared(profileOf(med))) return;
   queue({ t: "log", id: key, profileId: med.profileId, medId: med.id });
 }
+function syncPhotosRemoved(med, photoIds) {
+  if (!isShared(profileOf(med))) return;
+  for (const id of photoIds) queue({ t: "photodel", id, profileId: med.profileId });
+}
 function syncProfileMeta(p) {
   queue({ t: "profile", id: p.id, profileId: p.id });
 }
@@ -132,6 +136,9 @@ async function syncFlush() {
         if (med) ({ error } = await sb.from("medications").upsert(medToRow(med)));
       } else if (op.t === "meddel") {
         ({ error } = await sb.from("medications").upsert({ id: op.id, profile_id: op.profileId, data: op.data, deleted: true }));
+        // y sus fotos de receta
+        const files = (op.data?.rx?.photoIds || []).map(pid => `${op.profileId}/${pid}.jpg`);
+        if (!error && files.length) await sb.storage.from("recetas").remove(files);
       } else if (op.t === "log") {
         const e = state.log[op.id];
         ({ error } = await sb.from("dose_logs").upsert({
@@ -141,6 +148,9 @@ async function syncFlush() {
       } else if (op.t === "profile") {
         const p = profileById(op.id);
         if (p) ({ error } = await sb.from("profiles").update({ name: p.name, color: p.color }).eq("id", p.id));
+      } else if (op.t === "photodel") {
+        ({ error } = await sb.storage.from("recetas").remove([`${op.profileId}/${op.id}.jpg`]));
+        if (!error) delete state.sync.uploaded[op.id];
       } else if (op.t === "photo") {
         const rec = await rxGet(op.id).catch(() => null);
         if (rec) {
@@ -333,6 +343,13 @@ async function syncJoin(code) {
 
 async function syncLeave(profileId) {
   await syncSession();
+  // Si eres la última persona, el perfil se borra: antes se borran sus fotos de recetas
+  await syncRefreshMembers(profileId).catch(() => {});
+  if ((state.members[profileId] || []).length <= 1) {
+    const bucket = sbClient().storage.from("recetas");
+    const { data } = await bucket.list(profileId, { limit: 1000 });
+    if (data?.length) await bucket.remove(data.map(f => `${profileId}/${f.name}`));
+  }
   await rpc("leave_profile", { p_profile: profileId });
 }
 

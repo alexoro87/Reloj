@@ -23,6 +23,17 @@ App web instalable (PWA) para recordar tomar tus medicinas a tiempo, inspirada e
 - **Ajustes**: posponer 5–60 min, sonido, exportar/importar copia de seguridad.
 - Funciona sin conexión. Los datos se guardan **solo en el teléfono** (localStorage).
 
+## Personas y familia (compartir)
+- **Perfiles por persona** (Yo, Sofía, Abuela…): barra «Todos · persona» arriba de Hoy, Medicinas y Progreso;
+  al agregar una medicina se elige «¿Para quién?». Los recordatorios se activan o desactivan por persona.
+- **Compartir con la familia**: en el perfil → «Compartir con mi familia» → «Invitar a alguien» genera un
+  código (ej. `K7P2 QX8M`, vence en 7 días). La otra persona entra a «+ Persona → Tengo un código».
+- Todos ven y actualizan las mismas medicinas, tomas y recetas **en tiempo real**, y cada toma dice quién
+  la dio («tomada 08:05 por Mamá»). Sin internet se sigue usando y se sincroniza al volver la señal.
+- **Evita la doble dosis**: antes de registrar una toma se revisa si otra persona ya la dio.
+- Servidor: proyecto Supabase «MediHora» con acceso anónimo (sin correo ni contraseña). Cada perfil solo
+  lo pueden ver sus miembros (reglas de seguridad en el servidor) y las fotos van a un almacenamiento privado.
+
 ## Cómo usarla en el celular
 1. Publica el repositorio con **GitHub Pages** (Settings → Pages → rama `main`, carpeta `/root`).
 2. Abre `https://<usuario>.github.io/<repo>/medicinas/` en el teléfono.
@@ -71,5 +82,6 @@ Una app web no puede programar alarmas del sistema como una app nativa:
 > MediHora no sustituye el consejo de tu médico o farmacéutico.
 
 ## Créditos
+- Sincronización con [supabase-js](https://github.com/supabase/supabase-js) (licencia MIT, incluida en `vendor/`).
 - PDF generado con [jsPDF](https://github.com/parallax/jsPDF) (licencia MIT, incluida en `vendor/`).
 - App nativa con [Capacitor](https://capacitorjs.com) (licencia MIT).
