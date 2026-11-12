@@ -92,7 +92,8 @@ async function buildReportPdf({ days, medIds, table, photos }) {
   text("Reporte de tomas de medicamentos", ML, y);
   y += 7;
   font(10, "normal", PDF_COLORS.muted);
-  if (state.settings.name) { text(`Paciente: ${state.settings.name}`, ML, y); y += 5; }
+  const patients = [...new Set(meds.map(m => profileOf(m).name))];
+  if (patients.length) { text(`${patients.length > 1 ? "Pacientes" : "Paciente"}: ${patients.join(", ")}`, ML, y); y += 5; }
   text(`Periodo: ${longDate(from)} al ${longDate(today)} (${days} días)`, ML, y); y += 5;
   text(`Generado: ${longDate(new Date())}, ${hhmm(new Date())} h`, ML, y); y += 7;
 
@@ -138,7 +139,7 @@ async function buildReportPdf({ days, medIds, table, photos }) {
     doc.line(ML, y, ML + CW, y);
     y += 7;
     font(13, "bold");
-    text(`${med.name}${med.strength ? " " + med.strength : ""}`, ML, y);
+    text(`${whoPrefix(med)}${med.name}${med.strength ? " " + med.strength : ""}`, ML, y);
     font(11, "bold", PDF_COLORS.brand);
     text(`Toma de las ${time}`, ML + CW, y, { align: "right" });
     y += 5;
@@ -312,17 +313,17 @@ function drawPdfTable(doc, pts, y, { ML, CW, BOTTOM }) {
 /* ---------- Interfaz ---------- */
 
 function openPdfSheet() {
-  if (!state.meds.length) { toast("Agrega un medicamento primero"); return; }
-  if (!pdfOpts.medIds) pdfOpts.medIds = state.meds.map(m => m.id);
-  pdfOpts.medIds = pdfOpts.medIds.filter(id => state.meds.some(m => m.id === id));
+  const visible = state.meds.filter(medInView);
+  if (!visible.length) { toast("Agrega un medicamento primero"); return; }
+  pdfOpts.medIds = visible.map(m => m.id);
   document.querySelectorAll("#pdf-range button").forEach(b => b.classList.toggle("active", Number(b.dataset.days) === pdfOpts.days));
   const list = document.getElementById("pdf-meds");
   list.innerHTML = "";
-  [...state.meds].sort((a, b) => a.name.localeCompare(b.name)).forEach(m => {
+  [...visible].sort((a, b) => a.name.localeCompare(b.name)).forEach(m => {
     const lab = document.createElement("label");
     lab.className = "row-toggle";
     const sp = document.createElement("span");
-    sp.textContent = m.name + (m.strength ? " " + m.strength : "");
+    sp.textContent = whoPrefix(m) + m.name + (m.strength ? " " + m.strength : "");
     const cb = document.createElement("input");
     cb.type = "checkbox"; cb.value = m.id; cb.checked = pdfOpts.medIds.includes(m.id);
     lab.append(sp, cb);

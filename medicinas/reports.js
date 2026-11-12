@@ -62,7 +62,7 @@ function isScheduledOnIgnoringPause(med, d) {
 /* ---------- Filtros ---------- */
 
 function syncReportFilters() {
-  const meds = [...state.meds].sort((a, b) => a.name.localeCompare(b.name));
+  const meds = state.meds.filter(medInView).sort((a, b) => a.name.localeCompare(b.name));
   const medSel = document.getElementById("rep-med");
   const timeSel = document.getElementById("rep-time");
   if (!meds.find(m => m.id === rep.medId)) rep.medId = meds[0]?.id || null;
@@ -311,11 +311,13 @@ function showTip(i, px, W) {
 function exportReportCSV() {
   const rows = [["Medicamento", "Fecha", "Hora programada", "Hora real", "Diferencia (min)", "Estado"]];
   const today = startOfDay(new Date());
-  const meds = [...state.meds].sort((a, b) => a.name.localeCompare(b.name));
+  const meds = state.meds.filter(medInView).sort((a, b) => a.name.localeCompare(b.name));
+  if (multiProfile()) rows[0].unshift("Persona");
   for (const med of meds) {
     for (const t of med.times) {
       for (const p of reportPoints(med, t, rep.days)) {
         rows.push([
+          ...(multiProfile() ? [profileOf(med).name] : []),
           med.name + (med.strength ? " " + med.strength : ""),
           p.ds, t,
           p.real === null ? "" : fmtMin(p.real),

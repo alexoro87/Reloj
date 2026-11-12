@@ -499,3 +499,101 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--primary)
 .alarm-title { font-size: 20px; font-weight: 700; margin-bottom: 2px; text-align: left; }
 .alarm-sub { margin: 0 0 12px; color: var(--muted); font-size: 14px; }
 .alarm-item { border: none; background: var(--bg); border-radius: 14px; padding: 12px 14px; margin-bottom: 10px; }
+
+/* ---------- Mejor contraste del texto secundario ---------- */
+:root { --muted: #5b6b75; }
+@media (prefers-color-scheme: dark) { :root { --muted: #9fb0b8; } }
+
+/* ---------- Letra grande (accesibilidad) ---------- */
+html.big-text body { zoom: 1.15; }
+
+/* ---------- Íconos propios en la barra inferior ---------- */
+.tabs button svg {
+  width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.tabs button svg .fill { fill: currentColor; stroke: none; }
+.tabs button.active svg { stroke-width: 2.3; }
+
+/* ---------- Personas (perfiles) ---------- */
+.profile-bar { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 12px; margin: -4px -2px 0; scrollbar-width: none; }
+.profile-bar::-webkit-scrollbar { display: none; }
+.pchip {
+  flex: none; display: inline-flex; align-items: center; gap: 6px;
+  border: 1.5px solid var(--line); background: var(--card); color: var(--text);
+  border-radius: 999px; padding: 5px 12px 5px 6px; font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.pchip.active { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+.pchip.add { padding-left: 12px; color: var(--primary); border-style: dashed; }
+.profile-bar .pchip:first-child:not(:has(.avatar)) { padding-left: 12px; }
+.shared-ico { font-size: 12px; }
+.avatar {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  border-radius: 50%; background: var(--pc); color: #fff; font-weight: 800; line-height: 1;
+}
+.who {
+  display: inline-block; font-size: 11px; font-weight: 700; vertical-align: middle;
+  padding: 1px 8px; border-radius: 999px; color: var(--pc);
+  background: color-mix(in srgb, var(--pc) 14%, transparent);
+}
+.for-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.person-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  border: none; background: none; color: var(--text); padding: 10px 2px;
+  border-bottom: 1px solid var(--line); cursor: pointer; font-size: 16px;
+}
+.person-name { flex: 1; display: flex; flex-direction: column; font-weight: 600; }
+.person-name small { color: var(--muted); font-weight: 400; font-size: 13px; }
+.ps-top { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.ps-head { margin: 0 0 4px; font-size: 20px; }
+.members { margin: 8px 0 10px; }
+.member { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+.mrole { color: var(--muted); font-size: 13px; display: flex; gap: 8px; align-items: center; }
+.danger-link { color: var(--bad); font-size: 13px; }
+.invite { text-align: center; background: var(--card); border-radius: 14px; padding: 14px; margin: 10px 0; border: 1px dashed var(--primary); }
+.invite-code { font-size: 32px; font-weight: 800; letter-spacing: 4px; margin: 6px 0; color: var(--primary); font-variant-numeric: tabular-nums; }
+.invite .btn-row { justify-content: center; margin: 10px 0 0; }
+
+/* ---------- Diálogo propio ---------- */
+.dialog-backdrop {
+  position: fixed; inset: 0; z-index: 120; background: rgba(0,0,0,.4);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.dialog {
+  background: var(--card); color: var(--text); border-radius: 18px; padding: 20px;
+  width: 100%; max-width: 380px; box-shadow: 0 12px 40px rgba(0,0,0,.25); animation: fade .15s ease-out;
+}
+.dialog h3 { font-size: 19px; margin: 0 0 8px; }
+.dialog p { margin: 0 0 14px; line-height: 1.45; font-size: 15px; }
+.dialog input { margin-bottom: 14px; font-size: 18px; padding: 12px; }
+.dialog-buttons { display: flex; flex-direction: column; gap: 8px; }
+.btn.danger-solid { background: var(--bad); color: #fff; }
+
+/* ---------- Aviso con «Deshacer» ---------- */
+.toast { display: flex; align-items: center; gap: 14px; }
+.toast-action {
+  border: none; background: none; color: #7fe3d3; font-weight: 800; font-size: 14px;
+  padding: 4px 2px; cursor: pointer; text-transform: uppercase; letter-spacing: .3px;
+}
+
+/* ---------- Tomas atrasadas y "Marcar todas" ---------- */
+.overdue { border-left: 5px solid var(--bad); padding: 12px 14px; }
+.overdue-title { font-weight: 800; margin-bottom: 6px; }
+.overdue-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 15px; }
+.time-label .spacer { flex: 1; }
+.small-link { font-size: 14px; font-weight: 700; padding: 2px 4px; }
+.entry-line { margin-top: 6px; font-size: 14px; font-weight: 700; color: var(--ok); }
+.entry-line.skipped { color: var(--muted); }
+
+/* ---------- Lista de medicamentos ---------- */
+.section-title { margin: 18px 4px 10px; font-size: 15px; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); }
+.section-title:first-child { margin-top: 0; }
+.stock-row { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+.mini-chip {
+  border: none; border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 700;
+  background: var(--primary-soft); color: var(--primary); cursor: pointer;
+}
+
+/* ---------- Progreso: Resumen / Horarios ---------- */
+.prog-seg { margin-bottom: 14px; background: var(--card); box-shadow: var(--shadow); }
+.prog-seg button.active { background: var(--primary-soft); }

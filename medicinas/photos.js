@@ -87,9 +87,10 @@ const rxUrls = new Map(); // id -> objectURL para miniaturas
 
 async function rxThumbUrl(id) {
   if (rxUrls.has(id)) return rxUrls.get(id);
-  const rec = await rxGet(id);
-  if (!rec) return null;
-  const u = URL.createObjectURL(rec.blob);
+  let blob = (await rxGet(id))?.blob;
+  if (!blob) blob = await syncDownloadPhoto(id); // la subió otra persona de la familia
+  if (!blob) return null;
+  const u = URL.createObjectURL(blob);
   rxUrls.set(id, u);
   return u;
 }
@@ -258,9 +259,15 @@ async function rxImportAll(photos) {
 /* ---------- Para el PDF ---------- */
 
 async function rxPhotoForPdf(id) {
-  const rec = await rxGet(id);
+  let rec = await rxGet(id);
+  if (!rec && await syncDownloadPhoto(id)) rec = await rxGet(id);
   if (!rec) return null;
-  return { data: await blobToDataUrl(rec.blob), w: rec.w, h: rec.h };
+  let { w, h } = rec;
+  if (!w || !h) { // fotos descargadas: medir la imagen
+    const u = URL.createObjectURL(rec.blob);
+    try { const img = await loadImage(u); w = img.naturalWidth; h = img.naturalHeight; } finally { URL.revokeObjectURL(u); }
+  }
+  return { data: await blobToDataUrl(rec.blob), w, h };
 }
 
 /* ---------- Eventos ---------- */
@@ -277,8 +284,8 @@ document.getElementById("rx-close").onclick = rxCloseViewer;
 document.getElementById("rx-share").onclick = rxShareCurrent;
 document.getElementById("rx-prev").onclick = () => { rxViewer.i = (rxViewer.i - 1 + rxViewer.ids.length) % rxViewer.ids.length; rxShowCurrent(); };
 document.getElementById("rx-next").onclick = () => { rxViewer.i = (rxViewer.i + 1) % rxViewer.ids.length; rxShowCurrent(); };
-document.getElementById("rx-del").onclick = () => {
-  if (!confirm("¿Quitar esta foto de la receta?")) return;
+document.getElementById("rx-del").onclick = async () => {
+  if (!(await ask({ title: "¿Quitar esta foto de la receta?", ok: "Quitar", danger: true }))) return;
   rxRemoveFromForm(rxViewer.ids[rxViewer.i]);
   rxCloseViewer();
 };

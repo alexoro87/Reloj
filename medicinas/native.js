@@ -93,7 +93,7 @@ async function nativeAskExact() {
   if (CAP.Capacitor.getPlatform() !== "android" || !LN.checkExactNotificationSetting) return;
   const ex = await LN.checkExactNotificationSetting();
   if (ex.exact_alarm === "granted") return;
-  if (confirm("Para que las alarmas suenen a la hora exacta, activa «Alarmas y recordatorios» para MediHora en la siguiente pantalla.")) {
+  if (await ask({ title: "Un permiso más", text: "Para que los recordatorios lleguen a la hora exacta, activa «Alarmas y recordatorios» para MediHora en la siguiente pantalla.", ok: "Abrir ajustes", cancel: "Ahora no" })) {
     await LN.changeExactNotificationSetting();
   }
 }
@@ -105,7 +105,7 @@ function nativeDesired() {
   const list = [];
   const today = startOfDay(new Date());
   for (let i = -1; i <= NATIVE_DAYS_AHEAD; i++) {
-    for (const d of dosesFor(addDays(today, i))) {
+    for (const d of dosesFor(addDays(today, i), "alarm")) {
       if (d.entry) continue;
       const snz = state.snooze[d.key];
       const at = snz && snz > now ? snz : d.due.getTime();
@@ -137,7 +137,7 @@ async function nativeRescheduleNow() {
       return {
         id,
         title: "💊 Es hora de tu medicina",
-        body: `${d.med.name}${d.med.strength ? " " + d.med.strength : ""} · ${doseText(d.med)}${extra ? " · " + extra : ""}`,
+        body: `${whoPrefix(d.med)}${d.med.name}${d.med.strength ? " " + d.med.strength : ""} · ${doseText(d.med)}${extra ? " · " + extra : ""}`,
         schedule: { at: new Date(d.at), allowWhileIdle: true },
         channelId: NATIVE_CHANNEL,
         sound: NATIVE_SOUND,

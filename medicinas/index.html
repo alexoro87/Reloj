@@ -36,6 +36,7 @@
         </div>
         <button class="icon-btn" id="btn-go-today" title="Ir a hoy">Hoy</button>
       </header>
+      <div class="profile-bar" aria-label="Persona"></div>
 
       <div class="week" id="week"></div>
 
@@ -66,6 +67,7 @@
       <header class="top">
         <h1>Medicamentos</h1>
       </header>
+      <div class="profile-bar" aria-label="Persona"></div>
       <div id="meds-list"></div>
       <button class="btn full" id="btn-add-med-2">+ Agregar medicamento</button>
     </section>
@@ -75,6 +77,11 @@
       <header class="top">
         <h1>Progreso</h1>
       </header>
+      <div class="profile-bar" aria-label="Persona"></div>
+      <div class="seg prog-seg">
+        <button type="button" data-go="progress">Resumen</button>
+        <button type="button" data-go="reports">Horarios y reportes</button>
+      </div>
       <div class="stats">
         <div class="card stat"><div class="stat-num" id="st-7">–</div><div class="muted small">Cumplimiento 7 días</div></div>
         <div class="card stat"><div class="stat-num" id="st-30">–</div><div class="muted small">Cumplimiento 30 días</div></div>
@@ -97,12 +104,18 @@
     <!-- REPORTES -->
     <section id="view-reports" class="view">
       <header class="top">
-        <h1>Reportes</h1>
+        <h1>Progreso</h1>
         <div class="btn-row" style="margin:0">
           <button class="icon-btn" id="btn-csv">⬇ CSV</button>
           <button class="icon-btn" id="btn-pdf">🖨 PDF</button>
         </div>
       </header>
+      <div class="profile-bar" aria-label="Persona"></div>
+      <div class="seg prog-seg">
+        <button type="button" data-go="progress">Resumen</button>
+        <button type="button" data-go="reports">Horarios y reportes</button>
+      </div>
+
 
       <div class="filters">
         <select id="rep-med" aria-label="Medicamento"></select>
@@ -158,7 +171,12 @@
       <div class="card">
         <label class="field">
           <span>Tu nombre</span>
-          <input id="set-name" type="text" placeholder="Opcional">
+          <input id="set-name" type="text" placeholder="Ej. Mamá" maxlength="40">
+        </label>
+        <p class="hint" style="margin-top:-8px">Así te verá tu familia cuando registres una toma.</p>
+        <label class="row-toggle">
+          <span>Letra grande</span>
+          <input id="set-big" type="checkbox">
         </label>
         <label class="row-toggle">
           <span>Sonido de aviso (con la app abierta)</span>
@@ -174,6 +192,16 @@
             <option value="60">1 hora</option>
           </select>
         </label>
+      </div>
+
+      <div class="card">
+        <h3>👨‍👩‍👧 Personas y familia</h3>
+        <p class="muted small">Lleva las medicinas de varias personas y compártelas con tu familia: todos ven las tomas al instante y quién las dio.</p>
+        <div id="people-list"></div>
+        <div class="btn-row">
+          <button class="btn ghost" id="btn-add-person">+ Agregar persona</button>
+          <button class="btn ghost" id="btn-join">🔑 Unirme con código</button>
+        </div>
       </div>
 
       <div class="card">
@@ -213,11 +241,10 @@
 
   <!-- Barra inferior -->
   <nav class="tabs">
-    <button data-view="today" class="active"><span>📅</span>Hoy</button>
-    <button data-view="meds"><span>💊</span>Medicinas</button>
-    <button data-view="progress"><span>📈</span>Progreso</button>
-    <button data-view="reports"><span>📊</span>Reportes</button>
-    <button data-view="settings"><span>⚙️</span>Ajustes</button>
+    <button data-view="today" class="active"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/><circle cx="12" cy="15" r="1.6" class="fill"/></svg>Hoy</button>
+    <button data-view="meds"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="rotate(-40 12 12)"><rect x="3" y="8.5" width="18" height="7" rx="3.5"/><path d="M12 8.5v7"/></g></svg>Medicinas</button>
+    <button data-view="progress"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16"/><path d="M7 16v-4M12 16V7M17 16v-6"/></svg>Progreso</button>
+    <button data-view="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>Ajustes</button>
   </nav>
 
   <!-- Hoja: agregar / editar medicamento -->
@@ -240,6 +267,10 @@
         <!-- PASO 1: medicamento -->
         <section class="step" data-panel="0">
           <h2 class="step-q">¿Qué medicamento es?</h2>
+          <div class="field hidden" id="for-field">
+            <span>¿Para quién?</span>
+            <div class="for-chips" id="for-chips"></div>
+          </div>
           <label class="field">
             <span>Nombre</span>
             <input name="name" placeholder="Ej. Amoxicilina" autocomplete="off">
@@ -497,10 +528,33 @@
     </div>
   </div>
 
+  <!-- Hoja de una persona (perfil) -->
+  <div class="sheet-backdrop hidden" id="profile-sheet">
+    <div class="sheet small-sheet">
+      <div class="sheet-body" id="profile-body"></div>
+    </div>
+  </div>
+
+  <!-- Ventana de diálogo propia (en lugar de las del navegador) -->
+  <div class="dialog-backdrop hidden" id="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title">
+    <div class="dialog">
+      <h3 id="dlg-title"></h3>
+      <p id="dlg-text" class="muted"></p>
+      <input id="dlg-input" class="hidden" autocomplete="off">
+      <div class="dialog-buttons">
+        <button class="btn full" id="dlg-ok">Aceptar</button>
+        <button class="btn ghost full" id="dlg-cancel">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
 
   <script src="vendor/capacitor.js"></script>
   <script src="native.js"></script>
+  <script src="vendor/supabase.js"></script>
+  <script src="sync.js"></script>
+  <script src="profiles.js"></script>
   <script src="app.js"></script>
   <script src="reports.js"></script>
   <script src="pdf.js"></script>

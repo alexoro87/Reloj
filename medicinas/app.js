@@ -18,7 +18,11 @@ let state = {
   log: {},        // key -> { status: "taken"|"skipped", at: timestamp }
   snooze: {},     // key -> timestamp hasta el que se pospone
   notified: {},   // key@ts -> true (para no repetir avisos)
-  settings: { name: "", sound: true, snoozeMin: 10 }
+  settings: { name: "", sound: true, snoozeMin: 10, bigText: false },
+  profiles: [],           // personas: { id, name, color, cloud, alarms }
+  currentProfile: "all",  // "all" o el id de una persona
+  members: {},            // perfil compartido -> miembros
+  sync: { cursors: {}, outbox: [], uploaded: {} }
 };
 
 function load() {
@@ -30,6 +34,7 @@ function load() {
     }
   } catch (e) { console.warn("No se pudo leer el estado", e); }
   cleanup();
+  migrateProfiles();
 }
 
 function save() {
@@ -92,10 +97,13 @@ function inWindow(med, due) {
   return true;
 }
 
-function dosesFor(date) {
+// scope: "view" = lo que se ve con la persona elegida, "alarm" = lo que avisa este teléfono, "all" = todo
+function dosesFor(date, scope = "view") {
   const ds = ymd(date);
   const out = [];
   for (const med of state.meds) {
+    if (scope === "view" && !medInView(med)) continue;
+    if (scope === "alarm" && !medAlarm(med)) continue;
     if (!isScheduledOn(med, date)) continue;
     for (const time of med.times) {
       const key = doseKey(med.id, ds, time);
@@ -146,13 +154,15 @@ function setDose(key, status, at = Date.now()) {
   const prev = state.log[key]?.status;
   if (prev === "taken") adjustStock(dose.med, +(dose.med.qty || 1));
   if (status) {
-    state.log[key] = { status, at };
+    state.log[key] = { status, at, by: myName(), byUser: syncUserId() };
     if (status === "taken") adjustStock(dose.med, -(dose.med.qty || 1));
   } else {
     delete state.log[key];
   }
   delete state.snooze[key];
   save();
+  syncLog(key);
+  if (dose.med.stockOn) syncMed(dose.med);
   closeNotification(key);
   renderAll();
 }
@@ -232,7 +242,7 @@ function pendingDue(now = new Date()) {
   // tomas de hoy y de ayer (por si hay horarios cerca de medianoche)
   const res = [];
   for (const d of [addDays(now, -1), now]) {
-    for (const dose of dosesFor(d)) {
+    for (const dose of dosesFor(d, "alarm")) {
       if (dose.entry) continue;
       const fireAt = state.snooze[dose.key] || dose.due.getTime();
       if (fireAt <= now.getTime() && now.getTime() - fireAt < LATE_WINDOW_MIN * 60000) {
@@ -254,7 +264,7 @@ function checkReminders() {
     const extra = [d.med.food, d.med.notes].filter(Boolean).join(" · ");
     notify(
       "💊 Es hora de tu medicina",
-      `${d.med.name}${d.med.strength ? " " + d.med.strength : ""} · ${doseText(d.med)}${extra ? " · " + extra : ""}`,
+      `${whoPrefix(d.med)}${d.med.name}${d.med.strength ? " " + d.med.strength : ""} · ${doseText(d.med)}${extra ? " · " + extra : ""}`,
       d.key,
       [{ action: "take", title: "✓ Tomada" }, { action: "snooze", title: `⏱ ${state.settings.snoozeMin} min` }]
     );
@@ -271,7 +281,7 @@ async function scheduleFutureNotifications() {
   if (Notification.permission !== "granted" || !swReg) return;
   const now = new Date();
   for (const d of [now, addDays(now, 1)]) {
-    for (const dose of dosesFor(d)) {
+    for (const dose of dosesFor(d, "alarm")) {
       if (dose.entry || dose.due <= now) continue;
       try {
         await swReg.showNotification(`💊 ${dose.med.name}`, {
@@ -352,7 +362,19 @@ function hideAlarm() { document.getElementById("alarm").classList.add("hidden");
 let selectedDate = startOfDay(new Date());
 let currentView = "today";
 
+function renderPeople() {
+  const el = document.getElementById("people-list");
+  if (!el) return;
+  el.innerHTML = state.profiles.map(p => `
+    <button class="person-row" data-pid="${esc(p.id)}">${avatar(p, 32)}
+      <span class="person-name">${esc(p.name)}<small>${isShared(p) ? "👨‍👩‍👧 Compartido" : "Solo en este teléfono"}${p.alarms === false ? " · sin recordatorios" : ""}</small></span>
+      <span class="chev">›</span></button>`).join("");
+}
+
 function renderAll() {
+  applyTextSize();
+  renderProfileBars();
+  renderPeople();
   renderToday();
   renderMeds();
   if (currentView === "progress") renderProgress();
@@ -402,10 +424,12 @@ function renderToday() {
     "Toca una toma para registrarla";
 
   const list = document.getElementById("today-list");
-  if (!state.meds.length) {
+  const viewMeds = state.meds.filter(medInView);
+  if (!viewMeds.length) {
+    const who = state.currentProfile !== "all" ? profileById(state.currentProfile)?.name : null;
     list.innerHTML = `<div class="empty"><div class="big">💊</div>
-      <p>Todavía no tienes medicamentos.</p>
-      <button class="btn" onclick="openMedForm()">Agregar el primero</button></div>`;
+      <p>${who ? `${esc(who)} todavía no tiene medicamentos.` : "Todavía no tienes medicamentos."}</p>
+      <button class="btn" onclick="openMedForm()">Agregar medicamento</button></div>`;
     return;
   }
   if (!doses.length) {
@@ -413,32 +437,56 @@ function renderToday() {
     return;
   }
 
+  // Tarjeta de tomas atrasadas (solo hoy)
+  const overdue = isToday ? doses.filter(d => !d.entry && now - d.due > 30 * 60000) : [];
+  const overdueHtml = overdue.length ? `
+    <div class="overdue card">
+      <div class="overdue-title">⏰ ${overdue.length === 1 ? "Tienes 1 toma atrasada" : `Tienes ${overdue.length} tomas atrasadas`}</div>
+      ${overdue.map(d => `
+        <div class="overdue-row">
+          <span><b>${d.time}</b> · ${esc(whoPrefix(d.med))}${esc(d.med.name)}</span>
+          <button class="btn small" data-quick="${esc(d.key)}">✓ Tomada</button>
+        </div>`).join("")}
+    </div>` : "";
+
   const groups = {};
   doses.forEach(d => (groups[d.time] ||= []).push(d));
-  list.innerHTML = Object.entries(groups).map(([time, items]) => {
+  list.innerHTML = overdueHtml + Object.entries(groups).map(([time, items]) => {
     const due = items[0].due;
-    const anyOpen = items.some(i => !i.entry);
+    const open = items.filter(i => !i.entry);
     const mins = (now - due) / 60000;
     let tag = "";
-    if (anyOpen && mins > 30) tag = `<span class="tag late">Atrasada</span>`;
-    else if (anyOpen && mins >= -15 && mins <= 30) tag = `<span class="tag now">Ahora</span>`;
+    if (open.length && mins > 30) tag = `<span class="tag late">Atrasada</span>`;
+    else if (open.length && mins >= -15 && mins <= 30) tag = `<span class="tag now">Ahora</span>`;
+    // "Marcar todas" cuando hay varias pendientes a la misma hora y ya es (casi) la hora
+    const all = open.length > 1 && mins >= -60 ? `<button class="link small-link" data-markall="${esc(open.map(i => i.key).join(","))}">✓ Marcar todas</button>` : "";
     return `<div class="time-group">
-      <div class="time-label">🕒 ${time} ${tag}</div>
+      <div class="time-label">🕒 ${time} ${tag}<span class="spacer"></span>${all}</div>
       ${items.map(d => doseCard(d, now)).join("")}
     </div>`;
   }).join("");
+}
+
+// "tomada 08:05 por Papá" (el nombre solo en perfiles compartidos)
+function entryText(e) {
+  if (!e) return "";
+  if (e.status === "skipped") return `omitida${e.by && e.byUser && e.byUser !== syncUserId() ? " por " + e.by : ""}`;
+  const by = e.by && (e.byUser ? e.byUser !== syncUserId() : false) ? ` por ${e.by}` : "";
+  return `tomada ${hhmm(new Date(e.at))}${by}`;
 }
 
 function doseCard(d, now) {
   const st = d.entry?.status || "";
   const late = !st && now - d.due > 30 * 60000;
   const snz = state.snooze[d.key] && state.snooze[d.key] > now.getTime() ? ` · pospuesta a ${hhmm(new Date(state.snooze[d.key]))}` : "";
-  const when = st === "taken" ? ` · tomada ${hhmm(new Date(d.entry.at))}` : st === "skipped" ? " · omitida" : snz;
+  const when = st ? " · " + esc(entryText(d.entry)) : snz;
   const sub = [d.med.strength, doseText(d.med), d.med.food].filter(Boolean).map(esc).join(" · ") + when;
+  const who = multiProfile() && state.currentProfile === "all"
+    ? `<span class="who" style="--pc:${profileOf(d.med).color}">${esc(profileOf(d.med).name)}</span>` : "";
   return `<div class="dose ${st}" style="--c:${d.med.color}" data-key="${esc(d.key)}">
     <div class="pill-ico">${FORM_ICON[d.med.form] || "💊"}</div>
     <div class="dose-main">
-      <div class="dose-name">${esc(d.med.name)}</div>
+      <div class="dose-name">${esc(d.med.name)} ${who}</div>
       <div class="dose-sub">${sub}</div>
     </div>
     <button class="status ${st} ${late ? "late" : ""}" data-quick="${esc(d.key)}" aria-label="Marcar como tomada">${st === "skipped" ? "✕" : "✓"}</button>
@@ -472,28 +520,50 @@ function durationText(med) {
 
 function renderMeds() {
   const el = document.getElementById("meds-list");
-  if (!state.meds.length) {
-    el.innerHTML = `<div class="empty"><div class="big">🗂️</div><p>Aquí verás tus medicamentos.</p></div>`;
+  const list = state.meds.filter(medInView);
+  if (!list.length) {
+    el.innerHTML = `<div class="empty"><div class="big">🗂️</div><p>Aquí verás los medicamentos.</p></div>`;
     return;
   }
-  const today = startOfDay(new Date());
-  const meds = [...state.meds].sort((a, b) => a.name.localeCompare(b.name));
-  el.innerHTML = meds.map(m => {
+  const now = Date.now();
+  const ended = m => m.endAt ? now >= m.endAt : (m.endDate && startOfDay(new Date()) > parseYmd(m.endDate));
+  const sections = [
+    ["Activos", list.filter(m => !m.paused && !ended(m))],
+    ["En pausa", list.filter(m => m.paused && !ended(m))],
+    ["Terminados", list.filter(m => ended(m))]
+  ];
+  const card = m => {
     const low = m.stockOn && m.stock <= m.stockAlert;
-    const stock = m.stockOn ? `<div class="small ${low ? "stock-low" : "muted"}">Inventario: ${m.stock}${low ? " · ¡reponer!" : ""}</div>` : "";
+    const stock = m.stockOn ? `<div class="stock-row"><span class="small ${low ? "stock-low" : "muted"}">${low ? "⚠️ " : ""}Quedan ${m.stock}${low ? " · ¡reponer!" : ""}</span>
+      <button type="button" class="mini-chip" data-refill="${m.id}">+ Reponer</button></div>` : "";
+    const who = multiProfile() && state.currentProfile === "all" ? `<span class="who" style="--pc:${profileOf(m).color}">${esc(profileOf(m).name)}</span>` : "";
     return `<div class="card med-item" data-med="${m.id}" style="--c:${m.color}">
       <div class="pill-ico">${FORM_ICON[m.form] || "💊"}</div>
       <div class="dose-main">
-        <div class="dose-name">${esc(m.name)} <span class="muted small">${esc(m.strength || "")}</span></div>
+        <div class="dose-name">${esc(m.name)} <span class="muted small">${esc(m.strength || "")}</span> ${who}</div>
         <div class="dose-sub">${doseText(m)} · ${freqText(m)}</div>
         <div class="dose-sub">🕒 ${m.times.join(" · ")}</div>
-        <div class="dose-sub">${m.paused ? "⏸ En pausa · " : ""}${durationText(m)}</div>
+        <div class="dose-sub">${durationText(m)}</div>
         ${stock}
         ${m.rx?.photoIds?.length ? `<button type="button" class="rx-chip" data-rx="${m.id}">📄 Ver receta${m.rx.photoIds.length > 1 ? ` (${m.rx.photoIds.length})` : ""}</button>` : ""}
       </div>
       <div class="chev">›</div>
     </div>`;
-  }).join("");
+  };
+  el.innerHTML = sections.filter(([, ms]) => ms.length).map(([title, ms]) => `
+    <h3 class="section-title">${title} <span class="muted">${ms.length}</span></h3>
+    ${ms.sort((a, b) => a.name.localeCompare(b.name)).map(card).join("")}`).join("");
+}
+
+async function refillFlow(id) {
+  const m = state.meds.find(x => x.id === id);
+  if (!m) return;
+  const v = await ask({ title: `Reponer ${m.name}`, text: `Ahora quedan ${m.stock}. ¿Cuántas ${doseText({ qty: 2, form: m.form }).replace(/^2 /, "")} agregaste?`, ok: "Agregar", input: { type: "number", value: 30, min: 0 } });
+  const n = Number(v);
+  if (!v || !(n > 0)) return;
+  m.stock = Math.round((m.stock + n) * 100) / 100;
+  save(); syncMed(m); renderMeds();
+  toast(`Ahora quedan ${m.stock}`);
 }
 
 function renderProgress() {
@@ -527,7 +597,7 @@ function renderProgress() {
   document.getElementById("bars").innerHTML = bars;
 
   // por medicamento
-  const pm = state.meds.map(m => ({ m, a: adherence(addDays(today, -29), now, m.id) })).filter(x => x.a.total);
+  const pm = state.meds.filter(medInView).map(m => ({ m, a: adherence(addDays(today, -29), now, m.id) })).filter(x => x.a.total);
   document.getElementById("per-med").innerHTML = pm.length ? pm.map(({ m, a }) => `
     <div class="pm-row">
       <div class="pm-top"><span>${esc(m.name)}</span><span class="muted">${a.taken}/${a.total} · ${a.pct}%</span></div>
@@ -537,14 +607,14 @@ function renderProgress() {
   // historial
   const hist = Object.entries(state.log)
     .map(([key, e]) => ({ dose: findDose(key), e }))
-    .filter(x => x.dose)
+    .filter(x => x.dose && medInView(x.dose.med))
     .sort((a, b) => b.e.at - a.e.at)
     .slice(0, 20);
   document.getElementById("history").innerHTML = hist.length ? hist.map(({ dose, e }) => {
     const d = new Date(e.at);
     return `<div class="hist-row">
-      <span>${e.status === "taken" ? "✅" : "⏭️"} ${esc(dose.med.name)} <span class="muted">(${dose.time})</span></span>
-      <span class="muted">${d.toLocaleDateString("es", { day: "numeric", month: "short" })} ${hhmm(d)}</span>
+      <span>${e.status === "taken" ? "✅" : "⏭️"} ${esc(whoPrefix(dose.med))}${esc(dose.med.name)} <span class="muted">(${dose.time})</span></span>
+      <span class="muted">${d.toLocaleDateString("es", { day: "numeric", month: "short" })} ${hhmm(d)}${e.by && e.byUser && e.byUser !== syncUserId() ? " · " + esc(e.by) : ""}</span>
     </div>`;
   }).join("") : `<p class="muted small">Aún no hay registros.</p>`;
 }
@@ -570,7 +640,9 @@ function renderNotifUI() {
 function showView(v) {
   currentView = v;
   document.querySelectorAll(".view").forEach(s => s.classList.toggle("active", s.id === "view-" + v));
-  document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("active", b.dataset.view === v));
+  const tab = v === "reports" ? "progress" : v;
+  document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("active", b.dataset.view === tab));
+  document.querySelectorAll(".prog-seg button").forEach(b => b.classList.toggle("active", b.dataset.go === v));
   document.getElementById("btn-add-med").classList.toggle("hidden", v !== "today" && v !== "meds");
   if (v === "progress") renderProgress();
   if (v === "reports") renderReports();
@@ -586,6 +658,14 @@ let formColor = COLORS[0];
 let formPlan = "h8";     // h4 h6 h8 h12 h24 d2 d3 custom
 let formDur = "7";       // número de días, "other" o "0" (uso continuo)
 let formStep = 0;
+let formProfile = null;  // persona a la que pertenece el medicamento
+
+function renderForChips() {
+  const field = document.getElementById("for-field");
+  field.classList.toggle("hidden", !multiProfile());
+  document.getElementById("for-chips").innerHTML = state.profiles.map(p =>
+    `<button type="button" class="pchip ${p.id === formProfile ? "active" : ""}" data-for="${esc(p.id)}">${avatar(p, 22)} ${esc(p.name)}</button>`).join("");
+}
 const STEPS = 4;
 
 // Hora redondeada a los próximos 15 minutos (valor por defecto de la primera toma)
@@ -620,6 +700,8 @@ function openMedForm(id = null) {
   formFreq = med?.freq?.type || "daily";
   formDays = med?.freq?.days ? [...med.freq.days] : [1, 2, 3, 4, 5];
   formColor = med?.color || COLORS[state.meds.length % COLORS.length];
+  formProfile = med?.profileId || (state.currentProfile !== "all" ? state.currentProfile : state.profiles[0].id);
+  renderForChips();
   const first = med?.startAt ? new Date(med.startAt)
     : med ? atTime(med.startDate, med.times[0]) : nextQuarter();
   f.firstDate.value = ymd(first);
@@ -889,6 +971,7 @@ function saveMedFromForm(ev) {
   const existing = editingId ? state.meds.find(m => m.id === editingId) : null;
   const med = {
     id: existing?.id || uid(),
+    profileId: formProfile || state.profiles[0].id,
     name: f.name.value.trim(),
     strength: f.strength.value.trim(),
     form: f.form.value,
@@ -913,10 +996,13 @@ function saveMedFromForm(ev) {
     createdAt: existing?.createdAt || Date.now()
   };
 
+  // Si cambió de persona y el perfil anterior era compartido, se borra de allá
+  if (existing && existing.profileId !== med.profileId) syncMedDeleted(existing);
   if (existing) Object.assign(existing, med);
   else state.meds.push(med);
   save();
   rxCommit();
+  syncMed(existing || med);
   closeSheet(true);
   renderAll();
   scheduleFutureNotifications();
@@ -930,9 +1016,12 @@ function saveMedFromForm(ev) {
   }
 }
 
-function deleteMed() {
+async function deleteMed() {
   const med = state.meds.find(m => m.id === editingId);
-  if (!med || !confirm(`¿Eliminar ${med.name} y su historial?`)) return;
+  if (!med) return;
+  const shared = isShared(profileOf(med));
+  if (!(await ask({ title: `¿Eliminar ${med.name}?`, text: shared ? "Se borrará también para tu familia, con su historial." : "Se borrará con su historial.", ok: "Eliminar", danger: true }))) return;
+  syncMedDeleted(med);
   rxDiscard();
   rxDeleteForMed(med);
   state.meds = state.meds.filter(m => m.id !== editingId);
@@ -959,6 +1048,7 @@ function openActionSheet(key) {
         <div class="dose-name">${esc(d.med.name)} ${esc(d.med.strength || "")}</div>
         <div class="dose-sub">${d.time} · ${doseText(d.med)}</div>
         ${d.med.food || d.med.notes ? `<div class="dose-sub">${esc([d.med.food, d.med.notes].filter(Boolean).join(" · "))}</div>` : ""}
+        ${d.entry ? `<div class="entry-line ${d.entry.status}">${d.entry.status === "taken" ? "✓" : "✕"} ${esc(entryText(d.entry).replace(/^./, c => c.toUpperCase()))}</div>` : ""}
       </div>
     </div>`;
   const st = d.entry?.status;
@@ -971,18 +1061,38 @@ function openActionSheet(key) {
   sheet.classList.remove("hidden");
 }
 
-function onAction(act) {
+// Antes de registrar: si otra persona ya dio esta toma, avisar para no dar doble dosis
+async function guardDouble(key) {
+  const remote = await syncCheckDose(key);
+  const e = remote ? state.log[key] : (state.log[key]?.status === "taken" ? state.log[key] : null);
+  if (!e || e.status !== "taken") return true;
+  save(); renderAll();
+  const med = findDose(key)?.med;
+  const who = e.by && e.byUser !== syncUserId() ? e.by : "Alguien";
+  return ask({
+    title: "⚠️ Esta toma ya está registrada",
+    text: `${who} registró ${med?.name || "esta medicina"} a las ${hhmm(new Date(e.at))}. Para evitar una doble dosis, no la des de nuevo.`,
+    ok: "Entendido", cancel: false
+  }).then(() => false);
+}
+
+// Marca como tomada con opción de deshacer
+async function markTaken(key, at) {
+  if (!(await guardDouble(key))) return;
+  setDose(key, "taken", at);
+  toast("✓ Toma registrada", { action: "Deshacer", onAction: () => { setDose(key, null); toast("Registro deshecho"); } });
+}
+
+async function onAction(act) {
   const key = actionKey;
   document.getElementById("action-sheet").classList.add("hidden");
   if (!key || act === "close") return;
-  if (act === "taken") { setDose(key, "taken"); toast("✓ Toma registrada"); }
+  if (act === "taken") markTaken(key);
   else if (act === "taken-other") {
     const d = findDose(key);
-    const t = prompt("¿A qué hora la tomaste? (HH:MM)", hhmm(new Date()));
+    const t = await askTime("¿A qué hora la tomó?", hhmm(new Date()));
     if (!t) return;
-    if (!/^([01]?\d|2[0-3]):[0-5]\d$/.test(t.trim())) { toast("Hora no válida"); return; }
-    setDose(key, "taken", atTime(d.date, t.trim().padStart(5, "0")).getTime());
-    toast("✓ Toma registrada");
+    markTaken(key, atTime(d.date, t).getTime());
   }
   else if (act === "skipped") { setDose(key, "skipped"); toast("Toma omitida"); }
   else if (act === "undo") { setDose(key, null); toast("Registro deshecho"); }
@@ -1043,10 +1153,14 @@ function importData(file) {
     try {
       const p = JSON.parse(r.result);
       if (!Array.isArray(p.meds)) throw new Error("Archivo no válido");
-      if (!confirm("Esto reemplazará tus datos actuales. ¿Continuar?")) return;
+      if (!(await ask({ title: "¿Importar la copia?", text: "Esto reemplazará los datos de este teléfono.", ok: "Importar", danger: true }))) return;
       await rxImportAll(p.photos);
-      state = { meds: p.meds, log: p.log || {}, snooze: p.snooze || {}, notified: {}, settings: { ...state.settings, ...(p.settings || {}) } };
-      save(); loadSettingsUI(); renderAll();
+      state = { ...state, meds: p.meds, log: p.log || {}, snooze: p.snooze || {}, notified: {},
+        settings: { ...state.settings, ...(p.settings || {}) },
+        profiles: p.profiles || [], currentProfile: p.currentProfile || "all", members: p.members || {},
+        sync: p.sync || { cursors: {}, outbox: [], uploaded: {} } };
+      migrateProfiles();
+      save(); loadSettingsUI(); renderAll(); syncAll();
       toast("Datos importados");
     } catch (e) { toast("No se pudo importar: " + e.message); }
   };
@@ -1057,15 +1171,28 @@ function loadSettingsUI() {
   document.getElementById("set-name").value = state.settings.name || "";
   document.getElementById("set-sound").checked = !!state.settings.sound;
   document.getElementById("set-snooze").value = String(state.settings.snoozeMin);
+  document.getElementById("set-big").checked = !!state.settings.bigText;
 }
 
 let toastTimer = null;
-function toast(msg) {
+function toast(msg, opts = {}) {
   const el = document.getElementById("toast");
   el.textContent = msg;
+  if (opts.action) {
+    const b = document.createElement("button");
+    b.className = "toast-action";
+    b.textContent = opts.action;
+    b.onclick = () => { el.classList.add("hidden"); opts.onAction?.(); };
+    el.appendChild(b);
+  }
+  el.classList.toggle("has-action", !!opts.action);
   el.classList.remove("hidden");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.add("hidden"), 2600);
+  toastTimer = setTimeout(() => el.classList.add("hidden"), opts.action ? 6000 : 2600);
+}
+
+function applyTextSize() {
+  document.documentElement.classList.toggle("big-text", !!state.settings.bigText);
 }
 
 /* ================= Eventos ================= */
@@ -1142,13 +1269,25 @@ function bind() {
       const d = findDose(key);
       if (d.entry) { openActionSheet(key); return; }
       if (d.due - Date.now() > 12 * 3600e3) { toast("Todavía no toca esta toma"); return; }
-      setDose(key, "taken"); toast("✓ Toma registrada");
+      markTaken(key);
+      return;
+    }
+    const all = e.target.closest("[data-markall]");
+    if (all) {
+      const keys = all.dataset.markall.split(",");
+      (async () => {
+        let n = 0;
+        for (const k of keys) { if (await guardDouble(k)) { setDose(k, "taken"); n++; } }
+        if (n) toast(`✓ ${n} tomas registradas`, { action: "Deshacer", onAction: () => { keys.forEach(k => state.log[k]?.byUser === syncUserId() && setDose(k, null)); toast("Registros deshechos"); } });
+      })();
       return;
     }
     const card = e.target.closest("[data-key]");
     if (card) openActionSheet(card.dataset.key);
   };
   document.getElementById("meds-list").onclick = e => {
+    const refill = e.target.closest("[data-refill]");
+    if (refill) { refillFlow(refill.dataset.refill); return; }
     const rx = e.target.closest("[data-rx]");
     if (rx) {
       const m = state.meds.find(x => x.id === rx.dataset.rx);
@@ -1178,7 +1317,26 @@ function bind() {
   document.getElementById("alarm-close").onclick = hideAlarm;
 
   // Ajustes
-  document.getElementById("set-name").oninput = e => { state.settings.name = e.target.value.trim(); save(); renderToday(); };
+  let nameTimer = null;
+  document.getElementById("set-name").oninput = e => {
+    state.settings.name = e.target.value.trim(); save(); renderToday();
+    clearTimeout(nameTimer); nameTimer = setTimeout(syncMyName, 1200);
+  };
+  document.getElementById("set-big").onchange = e => { state.settings.bigText = e.target.checked; save(); applyTextSize(); };
+  document.querySelectorAll(".prog-seg").forEach(seg => seg.onclick = e => {
+    const b = e.target.closest("[data-go]");
+    if (b) showView(b.dataset.go);
+  });
+  document.getElementById("btn-add-person").onclick = addPersonFlow;
+  document.getElementById("btn-join").onclick = joinFlow;
+  document.getElementById("people-list").onclick = e => {
+    const b = e.target.closest("[data-pid]");
+    if (b) openProfileSheet(b.dataset.pid);
+  };
+  document.getElementById("for-chips").onclick = e => {
+    const b = e.target.closest("[data-for]");
+    if (b) { formProfile = b.dataset.for; renderForChips(); }
+  };
   document.getElementById("set-sound").onchange = e => { state.settings.sound = e.target.checked; save(); if (e.target.checked) { unlockAudio(); beepOnce(); } };
   document.getElementById("set-snooze").onchange = e => { state.settings.snoozeMin = Number(e.target.value); save(); };
   document.getElementById("btn-enable-notif").onclick = askNotifPermission;
@@ -1195,8 +1353,8 @@ function bind() {
   };
   document.getElementById("btn-export").onclick = exportData;
   document.getElementById("file-import").onchange = e => { if (e.target.files[0]) importData(e.target.files[0]); e.target.value = ""; };
-  document.getElementById("btn-wipe").onclick = () => {
-    if (!confirm("¿Borrar todos tus medicamentos e historial? No se puede deshacer.")) return;
+  document.getElementById("btn-wipe").onclick = async () => {
+    if (!(await ask({ title: "¿Borrar todos los datos?", text: "Se borrarán de este teléfono todos los medicamentos, el historial y las recetas. Los perfiles compartidos seguirán en el teléfono de tu familia.", ok: "Borrar todo", danger: true }))) return;
     localStorage.removeItem(STORE_KEY);
     rxClear().catch(() => {}).finally(() => location.reload());
   };
@@ -1239,5 +1397,6 @@ loadSettingsUI();
 renderAll();
 registerSW().then(() => { handleUrlAction(); scheduleFutureNotifications(); });
 if (NATIVE) nativeInit();
+syncInit();
 checkReminders();
 setInterval(tick, 20000);
