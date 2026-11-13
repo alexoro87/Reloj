@@ -14,5 +14,6 @@ Ideas y pendientes acordados para próximas versiones.
 - **Cuentas con correo o Google** (necesario antes de cobrar una suscripción).
 
 ## En curso
-- Recordatorios por WhatsApp.
+- Recordatorios por WhatsApp: app y servidor listos; falta configurar la cuenta de WhatsApp Business
+  (Meta), sus secretos en Supabase y poner el número en `medicinas/whatsapp.js` (`WA_NUMBER`).
 - Escanear receta con IA (falta configurar la clave `ANTHROPIC_API_KEY` en Supabase).

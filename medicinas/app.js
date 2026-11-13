@@ -494,8 +494,9 @@ function renderToday() {
 // "tomada 08:05 por Papá" (el nombre solo en perfiles compartidos)
 function entryText(e) {
   if (!e) return "";
-  if (e.status === "skipped") return `omitida${e.by && e.byUser && e.byUser !== syncUserId() ? " por " + e.by : ""}`;
-  const by = e.by && (e.byUser ? e.byUser !== syncUserId() : false) ? ` por ${e.by}` : "";
+  const otro = e.by && e.byUser !== syncUserId() && (e.byUser || /^WhatsApp/.test(e.by));
+  if (e.status === "skipped") return `omitida${otro ? " por " + e.by : ""}`;
+  const by = otro ? ` por ${e.by}` : "";
   return `tomada ${hhmm(new Date(e.at))}${by}`;
 }
 

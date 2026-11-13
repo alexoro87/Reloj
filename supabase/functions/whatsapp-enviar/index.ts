@@ -1,6 +1,6 @@
 // MediHora — Envía por WhatsApp los recordatorios de las tomas que tocan ahora.
 // Lo llama pg_cron cada minuto con el encabezado x-cron-secret.
-// Secretos: WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, CRON_SECRET
+// Secretos: WHATSAPP_TOKEN, WHATSAPP_PHONE_ID (la clave de la tarea vive en Vault: whatsapp_cron_secret)
 // Opcionales: WHATSAPP_TEMPLATE (recordatorio_medicina), WHATSAPP_LANG (es_MX)
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 
@@ -68,11 +68,13 @@ async function enviarPlantilla(to: string, persona: string, medicina: string, ho
 }
 
 Deno.serve(async (req) => {
-  if (req.headers.get("x-cron-secret") !== Deno.env.get("CRON_SECRET")) return new Response("No autorizado", { status: 401 });
+  const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  // Solo la tarea programada conoce esta clave (guardada cifrada en Vault)
+  const { data: autorizado } = await db.rpc("cron_secret_ok", { p: req.headers.get("x-cron-secret") ?? "" });
+  if (!autorizado) return new Response("No autorizado", { status: 401 });
   if (!Deno.env.get("WHATSAPP_TOKEN") || !Deno.env.get("WHATSAPP_PHONE_ID")) {
     return Response.json({ enviados: 0, nota: "WhatsApp aún no está configurado" });
   }
-  const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const ahora = new Date();
 
   const { data: links } = await db.from("whatsapp_links").select("id, profile_id, phone, tz, profiles(name)").eq("active", true);
