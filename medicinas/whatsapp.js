@@ -4,6 +4,8 @@
 
 // Número de WhatsApp de MediHora (solo dígitos, con código de país). Se llena al configurar Meta.
 const WA_NUMBER = "";
+// En pausa: Meta exige verificar la empresa para usar WhatsApp Business. Cambiar a true para mostrarlo.
+const WA_ENABLED = false;
 
 const waFmt = n => "+" + String(n || "").replace(/\D/g, "");
 

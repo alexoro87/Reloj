@@ -237,10 +237,10 @@ function renderProfileSheet() {
       `}
     </div>
 
-    <div class="card inner">
+    ${WA_ENABLED ? `<div class="card inner">
       <strong>💬 Recordatorios por WhatsApp</strong>
       <div id="pf-wa"></div>
-    </div>
+    </div>` : ""}
 
     <div class="action-buttons">
       <button class="btn full" data-act="save">Guardar</button>
@@ -250,7 +250,7 @@ function renderProfileSheet() {
       <button class="btn ghost full" data-act="close">Cerrar</button>
     </div>`;
 
-  waRender(p);
+  if (WA_ENABLED) waRender(p);
 
   body.onclick = async e => {
     const color = e.target.closest("[data-color]");
