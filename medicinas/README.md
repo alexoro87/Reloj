@@ -23,6 +23,11 @@ App web instalable (PWA) para recordar tomar tus medicinas a tiempo, inspirada e
 - **Ajustes**: posponer 5–60 min, sonido, exportar/importar copia de seguridad.
 - Funciona sin conexión. Los datos se guardan **solo en el teléfono** (localStorage).
 
+## Ayuda dentro de la app
+- **Recorrido de bienvenida**: 5 pantallas la primera vez que se abre la app (se puede saltar).
+- **Ajustes → Ayuda y tutorial**: guías con capturas reales (agregar medicina, escanear receta, avisos,
+  familia, reportes) y preguntas frecuentes. Las imágenes están en `medicinas/ayuda/`.
+
 ## Personas y familia (compartir)
 - **Perfiles por persona** (Yo, Sofía, Abuela…): barra «Todos · persona» arriba de Hoy, Medicinas y Progreso;
   al agregar una medicina se elige «¿Para quién?». Los recordatorios se activan o desactivan por persona.

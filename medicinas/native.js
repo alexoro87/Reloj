@@ -213,6 +213,8 @@ async function nativeShareBlob(blob, filename, title) {
 
 function nativeBack() {
   const open = id => !document.getElementById(id).classList.contains("hidden");
+  if (open("tour")) return closeTour();
+  if (open("help")) return closeHelp();
   if (open("rx-viewer")) return rxCloseViewer();
   if (open("pdf-sheet")) return document.getElementById("pdf-sheet").classList.add("hidden");
   if (open("action-sheet")) return document.getElementById("action-sheet").classList.add("hidden");

@@ -169,6 +169,12 @@
         <h1>Ajustes</h1>
       </header>
 
+      <button class="card help-card" type="button" id="btn-help">
+        <span class="help-card-ico">?</span>
+        <span><b>Ayuda y tutorial</b><br><span class="muted small">Cómo agregar medicinas, avisos, familia y reportes</span></span>
+        <span class="chev">›</span>
+      </button>
+
       <div class="card">
         <label class="field">
           <span>Tu nombre</span>
@@ -574,6 +580,23 @@
     <div class="sheet small-sheet"><div class="sheet-body" id="scan-body"></div></div>
   </div>
 
+  <!-- Recorrido de bienvenida -->
+  <div class="tour-backdrop hidden" id="tour" role="dialog" aria-modal="true" aria-label="Recorrido de bienvenida">
+    <div class="tour-card" id="tour-card"></div>
+  </div>
+
+  <!-- Ayuda -->
+  <div class="sheet-backdrop hidden" id="help" role="dialog" aria-modal="true" aria-labelledby="help-title">
+    <div class="sheet help-sheet">
+      <div class="sheet-head">
+        <span></span>
+        <strong id="help-title">Ayuda</strong>
+        <button type="button" class="link strong" data-help="close">Cerrar</button>
+      </div>
+      <div class="sheet-body" id="help-body"></div>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
 
   <script src="vendor/capacitor.js"></script>
@@ -586,5 +609,6 @@
   <script src="pdf.js"></script>
   <script src="photos.js"></script>
   <script src="scan.js"></script>
+  <script src="help.js"></script>
 </body>
 </html>
