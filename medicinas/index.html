@@ -66,6 +66,7 @@
     <section id="view-meds" class="view">
       <header class="top">
         <h1>Medicamentos</h1>
+        <button class="icon-btn" data-start-scan>📷 Escanear receta</button>
       </header>
       <div class="profile-bar" aria-label="Persona"></div>
       <div id="meds-list"></div>
@@ -267,6 +268,11 @@
         <!-- PASO 1: medicamento -->
         <section class="step" data-panel="0">
           <h2 class="step-q">¿Qué medicamento es?</h2>
+          <button type="button" class="scan-cta" id="scan-cta" data-start-scan>
+            <span class="scan-cta-ico">📷</span>
+            <span><b>¿Tienes la receta?</b><br><span class="muted small">Tómale una foto y lleno los datos por ti</span></span>
+          </button>
+          <div class="scan-banner hidden" id="scan-banner">📷 Datos leídos de tu receta. <b>Revisa cada paso</b> antes de guardar.</div>
           <div class="field hidden" id="for-field">
             <span>¿Para quién?</span>
             <div class="for-chips" id="for-chips"></div>
@@ -548,6 +554,15 @@
     </div>
   </div>
 
+  <!-- Escanear receta -->
+  <input type="file" id="scan-input" accept="image/*" capture="environment" hidden>
+  <div class="scan-loading hidden" id="scan-loading" role="status" aria-live="polite">
+    <div class="scan-loading-card"><div class="spinner"></div><b>Leyendo tu receta…</b><span class="muted small">Esto tarda unos segundos</span></div>
+  </div>
+  <div class="sheet-backdrop hidden" id="scan-sheet">
+    <div class="sheet small-sheet"><div class="sheet-body" id="scan-body"></div></div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
 
   <script src="vendor/capacitor.js"></script>
@@ -559,5 +574,6 @@
   <script src="reports.js"></script>
   <script src="pdf.js"></script>
   <script src="photos.js"></script>
+  <script src="scan.js"></script>
 </body>
 </html>

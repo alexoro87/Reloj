@@ -429,7 +429,8 @@ function renderToday() {
     const who = state.currentProfile !== "all" ? profileById(state.currentProfile)?.name : null;
     list.innerHTML = `<div class="empty"><div class="big">💊</div>
       <p>${who ? `${esc(who)} todavía no tiene medicamentos.` : "Todavía no tienes medicamentos."}</p>
-      <button class="btn" onclick="openMedForm()">Agregar medicamento</button></div>`;
+      <div class="btn-row" style="justify-content:center"><button class="btn" onclick="openMedForm()">Agregar medicamento</button>
+      <button class="btn ghost" onclick="startScan()">📷 Escanear receta</button></div></div>`;
     return;
   }
   if (!doses.length) {
@@ -683,6 +684,8 @@ function openMedForm(id = null) {
   document.getElementById("sheet-title").textContent = med ? "Editar medicamento" : "Nuevo medicamento";
   document.getElementById("btn-delete-med").classList.toggle("hidden", !med);
   document.getElementById("btn-save-top").classList.toggle("invisible", !med);
+  document.getElementById("scan-banner").classList.add("hidden");
+  document.getElementById("scan-cta").classList.toggle("hidden", !!med);
 
   f.name.value = med?.name || "";
   f.strength.value = med?.strength || "";
@@ -754,6 +757,7 @@ function openMedForm(id = null) {
 function closeSheet(saved = false) {
   if (!saved) rxDiscard();
   document.getElementById("sheet").classList.add("hidden");
+  if (!saved) scanAfterCancel();
 }
 
 /* ----- Pasos ----- */
@@ -1008,6 +1012,7 @@ function saveMedFromForm(ev) {
   closeSheet(true);
   renderAll();
   scheduleFutureNotifications();
+  scanAfterSave();
   if (existing) toast("Cambios guardados");
   else {
     const n = p.durationDays ? planDoses(p).length : null;
