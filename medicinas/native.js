@@ -109,7 +109,12 @@ function nativeDesired() {
     for (const d of dosesFor(addDays(today, i), "alarm")) {
       if (d.entry) continue;
       // aviso original + repeticiones hasta que se marque (se cancelan al registrar la toma)
-      for (const f of upcomingFireTimes(d, now)) list.push({ ...d, at: f.at, rep: f.rep });
+      // las repeticiones solo para las próximas 36 h (se renuevan al abrir la app),
+      // así los avisos principales alcanzan para 14 días
+      for (const f of upcomingFireTimes(d, now)) {
+        if (f.rep && d.due.getTime() > now + 36 * 3600e3) continue;
+        list.push({ ...d, at: f.at, rep: f.rep });
+      }
     }
   }
   list.sort((a, b) => a.at - b.at);
