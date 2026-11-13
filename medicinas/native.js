@@ -5,7 +5,8 @@
 
 const CAP = window.capacitorExports;
 const NATIVE = !!(CAP?.Capacitor?.isNativePlatform?.());
-const NATIVE_MAX_PENDING = 60;   // iOS admite 64 notificaciones programadas
+// iOS admite 64 notificaciones programadas; Android, muchas más
+const nativeMaxPending = () => (CAP?.Capacitor?.getPlatform?.() === "ios" ? 60 : 300);
 const NATIVE_DAYS_AHEAD = 14;
 const NATIVE_CHANNEL = "tomas-recordatorio";
 const NATIVE_SOUND = "recordatorio.wav";
@@ -107,14 +108,12 @@ function nativeDesired() {
   for (let i = -1; i <= NATIVE_DAYS_AHEAD; i++) {
     for (const d of dosesFor(addDays(today, i), "alarm")) {
       if (d.entry) continue;
-      const snz = state.snooze[d.key];
-      const at = snz && snz > now ? snz : d.due.getTime();
-      if (at <= now) continue;
-      list.push({ ...d, at });
+      // aviso original + repeticiones hasta que se marque (se cancelan al registrar la toma)
+      for (const f of upcomingFireTimes(d, now)) list.push({ ...d, at: f.at, rep: f.rep });
     }
   }
   list.sort((a, b) => a.at - b.at);
-  return list.slice(0, NATIVE_MAX_PENDING);
+  return list.slice(0, nativeMaxPending());
 }
 
 let nativeTimer = null;
@@ -130,13 +129,13 @@ async function nativeRescheduleNow() {
     const desired = nativeDesired();
     const used = new Set();
     const notifs = desired.map(d => {
-      let id = nativeId(d.key);
+      let id = nativeId(d.rep ? `${d.key}#${d.rep}` : d.key);
       while (used.has(id)) id = (id + 1) % 2147483647 || 1;
       used.add(id);
       const extra = [d.med.food, d.med.notes].filter(Boolean).join(" · ");
       return {
         id,
-        title: "💊 Es hora de tu medicina",
+        title: d.rep ? "💊 ¿Ya tomaste tu medicina?" : "💊 Es hora de tu medicina",
         body: `${whoPrefix(d.med)}${d.med.name}${d.med.strength ? " " + d.med.strength : ""} · ${doseText(d.med)}${extra ? " · " + extra : ""}`,
         schedule: { at: new Date(d.at), allowWhileIdle: true },
         channelId: NATIVE_CHANNEL,
@@ -145,7 +144,8 @@ async function nativeRescheduleNow() {
         iconColor: "#0f9d8a",
         actionTypeId: "DOSE",
         autoCancel: true,
-        extra: { key: d.key, kind: "dose" }
+        group: d.key,
+        extra: { key: d.key, kind: "dose", rep: d.rep || 0 }
       };
     });
     const pending = (await LN.getPending()).notifications || [];

@@ -184,6 +184,17 @@
           <input id="set-sound" type="checkbox">
         </label>
         <label class="field">
+          <span>Si no la registro, volver a avisarme</span>
+          <select id="set-repeat">
+            <option value="0">No repetir</option>
+            <option value="5">Cada 5 minutos</option>
+            <option value="10">Cada 10 minutos</option>
+            <option value="15">Cada 15 minutos</option>
+            <option value="30">Cada 30 minutos</option>
+          </select>
+        </label>
+        <p class="hint" style="margin-top:-8px">Se detiene al marcarla como tomada u omitida (máximo 3 horas).</p>
+        <label class="field">
           <span>Posponer recordatorio</span>
           <select id="set-snooze">
             <option value="5">5 minutos</option>

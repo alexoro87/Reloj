@@ -9,7 +9,31 @@ const FORM_ICON = {
 };
 const DAY_SHORT = ["D", "L", "M", "X", "J", "V", "S"];
 const DAY_NAME = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
-const LATE_WINDOW_MIN = 120; // cuánto tiempo seguir avisando de una toma no registrada
+const LATE_WINDOW_MIN = 120; // cuánto tiempo mostrar una toma no registrada si no se repiten avisos
+const REPEAT_MAX_MIN = 180;  // los avisos repetidos se detienen a las 3 horas
+
+// Momento del aviso más reciente de una toma pendiente (el original, o una repetición
+// cada X minutos hasta que se marque). null si no toca avisar.
+function lastFireTime(dose, now = Date.now()) {
+  const base = state.snooze[dose.key] || dose.due.getTime();
+  if (base > now) return null;
+  const every = Number(state.settings.repeatMin) || 0;
+  const elapsed = now - base;
+  if (!every) return elapsed < LATE_WINDOW_MIN * 60000 ? base : null;
+  if (elapsed > REPEAT_MAX_MIN * 60000) return null;
+  return base + Math.floor(elapsed / (every * 60000)) * every * 60000;
+}
+// Próximos avisos (original + repeticiones) de una toma pendiente, a partir de ahora
+function upcomingFireTimes(dose, now = Date.now()) {
+  const base = state.snooze[dose.key] || dose.due.getTime();
+  const every = Number(state.settings.repeatMin) || 0;
+  const out = [];
+  for (let t = base, k = 0; t <= base + (every ? REPEAT_MAX_MIN * 60000 : 0); t += Math.max(every, 1) * 60000, k++) {
+    if (t > now) out.push({ at: t, rep: k });
+    if (!every) break;
+  }
+  return out;
+}
 
 /* ================= Estado ================= */
 
@@ -18,7 +42,7 @@ let state = {
   log: {},        // key -> { status: "taken"|"skipped", at: timestamp }
   snooze: {},     // key -> timestamp hasta el que se pospone
   notified: {},   // key@ts -> true (para no repetir avisos)
-  settings: { name: "", sound: true, snoozeMin: 10, bigText: false },
+  settings: { name: "", sound: true, snoozeMin: 10, repeatMin: 10, bigText: false },
   profiles: [],           // personas: { id, name, color, cloud, alarms }
   currentProfile: "all",  // "all" o el id de una persona
   members: {},            // perfil compartido -> miembros
@@ -244,10 +268,8 @@ function pendingDue(now = new Date()) {
   for (const d of [addDays(now, -1), now]) {
     for (const dose of dosesFor(d, "alarm")) {
       if (dose.entry) continue;
-      const fireAt = state.snooze[dose.key] || dose.due.getTime();
-      if (fireAt <= now.getTime() && now.getTime() - fireAt < LATE_WINDOW_MIN * 60000) {
-        res.push({ ...dose, fireAt });
-      }
+      const fireAt = lastFireTime(dose, now.getTime());
+      if (fireAt !== null) res.push({ ...dose, fireAt });
     }
   }
   return res;
@@ -262,8 +284,9 @@ function checkReminders() {
     state.notified[`${d.key}@${d.fireAt}`] = true;
     if (NATIVE) continue; // en la app nativa la alarma ya la lanzó el sistema
     const extra = [d.med.food, d.med.notes].filter(Boolean).join(" · ");
+    const repeat = d.fireAt > (state.snooze[d.key] || d.due.getTime());
     notify(
-      "💊 Es hora de tu medicina",
+      repeat ? "💊 ¿Ya tomaste tu medicina?" : "💊 Es hora de tu medicina",
       `${whoPrefix(d.med)}${d.med.name}${d.med.strength ? " " + d.med.strength : ""} · ${doseText(d.med)}${extra ? " · " + extra : ""}`,
       d.key,
       [{ action: "take", title: "✓ Tomada" }, { action: "snooze", title: `⏱ ${state.settings.snoozeMin} min` }]
@@ -1178,6 +1201,7 @@ function loadSettingsUI() {
   document.getElementById("set-name").value = state.settings.name || "";
   document.getElementById("set-sound").checked = !!state.settings.sound;
   document.getElementById("set-snooze").value = String(state.settings.snoozeMin);
+  document.getElementById("set-repeat").value = String(state.settings.repeatMin ?? 10);
   document.getElementById("set-big").checked = !!state.settings.bigText;
 }
 
@@ -1329,6 +1353,7 @@ function bind() {
     state.settings.name = e.target.value.trim(); save(); renderToday();
     clearTimeout(nameTimer); nameTimer = setTimeout(syncMyName, 1200);
   };
+  document.getElementById("set-repeat").onchange = e => { state.settings.repeatMin = Number(e.target.value); save(); scheduleFutureNotifications(); };
   document.getElementById("set-big").onchange = e => { state.settings.bigText = e.target.checked; save(); applyTextSize(); };
   document.querySelectorAll(".prog-seg").forEach(seg => seg.onclick = e => {
     const b = e.target.closest("[data-go]");
