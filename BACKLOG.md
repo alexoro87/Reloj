@@ -13,12 +13,5 @@ Ideas y pendientes acordados para próximas versiones.
   ya registró la toma.
 - **Cuentas con correo o Google** (necesario antes de cobrar una suscripción).
 
-## En pausa
-- **Recordatorios por WhatsApp**: el código de la app y del servidor está hecho, pero Meta exige verificar
-  legalmente la empresa. Para retomarlo: verificar la empresa en Meta, crear la plantilla
-  `recordatorio_medicina`, poner los secretos `WHATSAPP_*` en Supabase, llenar `WA_NUMBER` y cambiar
-  `WA_ENABLED` a `true` en `medicinas/whatsapp.js`. La tarea `medihora-whatsapp` (pg_cron, cada minuto)
-  sigue activa y no hace nada mientras falten los secretos. Alternativa sin verificación: bot de Telegram.
-
 ## En curso
 - Escanear receta con IA (falta configurar la clave `ANTHROPIC_API_KEY` en Supabase).

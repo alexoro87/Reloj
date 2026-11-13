@@ -237,11 +237,6 @@ function renderProfileSheet() {
       `}
     </div>
 
-    ${WA_ENABLED ? `<div class="card inner">
-      <strong>💬 Recordatorios por WhatsApp</strong>
-      <div id="pf-wa"></div>
-    </div>` : ""}
-
     <div class="action-buttons">
       <button class="btn full" data-act="save">Guardar</button>
       ${isShared(p)
@@ -249,8 +244,6 @@ function renderProfileSheet() {
         : state.profiles.length > 1 ? `<button class="btn danger full" data-act="delete">Eliminar perfil</button>` : ""}
       <button class="btn ghost full" data-act="close">Cerrar</button>
     </div>`;
-
-  if (WA_ENABLED) waRender(p);
 
   body.onclick = async e => {
     const color = e.target.closest("[data-color]");
