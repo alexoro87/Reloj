@@ -386,7 +386,14 @@ async function syncDeleteAccount() {
       if (files?.length) await bucket.remove(files.map(f => `${p.id}/${f.name}`));
     }
   }
-  await rpc("delete_my_account", {});
+  try {
+    await rpc("delete_my_account", {});
+  } catch (e) {
+    if (!/delete_my_account|function|schema cache/i.test(e.message || "")) throw e;
+    // El servidor aún no tiene la función: salir de cada perfil compartido
+    // (si eras la última persona, el servidor borra el perfil con sus datos)
+    for (const p of state.profiles.filter(x => x.cloud)) await rpc("leave_profile", { p_profile: p.id });
+  }
   if (sbChannel) { sb.removeChannel(sbChannel); sbChannel = null; }
   await sb.auth.signOut({ scope: "local" }).catch(() => {});
   sbUser = null;
