@@ -48,22 +48,26 @@ jobs:
             echo "::warning::No hay llave configurada: el APK se firma con una llave temporal. Para actualizar sin perder datos configura los secretos MEDIHORA_KEYSTORE_BASE64 y MEDIHORA_KEYSTORE_PASSWORD."
           fi
 
-      - name: Compilar APK
+      - name: Compilar APK y AAB (Google Play)
         working-directory: android
         env:
           MEDIHORA_KEYSTORE_PASSWORD: ${{ secrets.MEDIHORA_KEYSTORE_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          ./gradlew assembleRelease bundleRelease --no-daemon --stacktrace
 
-      - name: Renombrar APK
-        run: cp android/app/build/outputs/apk/release/app-release.apk MediHora.apk
+      - name: Renombrar archivos
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk MediHora.apk
+          cp android/app/build/outputs/bundle/release/app-release.aab MediHora.aab
 
-      - name: Subir APK como artefacto
+      - name: Subir APK y AAB como artefactos
         uses: actions/upload-artifact@v4
         with:
           name: MediHora-apk
-          path: MediHora.apk
+          path: |
+            MediHora.apk
+            MediHora.aab
 
       # Publica el APK en "Releases" para descargarlo fácil desde el teléfono
       - name: Publicar en Releases
@@ -77,4 +81,7 @@ jobs:
           body: |
             App de Android de MediHora (rama `${{ github.ref_name }}`).
             Descarga **MediHora.apk** desde el teléfono e instálala.
-          files: MediHora.apk
+            **MediHora.aab** es el paquete para subir a Google Play.
+          files: |
+            MediHora.apk
+            MediHora.aab
