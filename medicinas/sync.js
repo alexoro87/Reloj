@@ -368,6 +368,30 @@ async function syncMyName() {
   } catch { /* se reintenta en otro momento */ }
 }
 
+/* ---------- Eliminar la cuenta del servidor (Ajustes → Borrar todos mis datos) ---------- */
+
+async function syncDeleteAccount() {
+  const sb = sbClient();
+  if (!sb) return;
+  const { data } = await sb.auth.getSession();
+  if (!data?.session) return; // nunca se conectó al servidor: no hay cuenta que borrar
+  if (!navigator.onLine) throw new Error("Necesitas internet para borrar tu cuenta del servidor.");
+  sbUser = data.session.user;
+  // Fotos de recetas de los perfiles que solo usaba esta persona (el servidor borra el resto)
+  for (const p of state.profiles.filter(x => x.cloud)) {
+    await syncRefreshMembers(p.id).catch(() => {});
+    if ((state.members[p.id] || []).length <= 1) {
+      const bucket = sb.storage.from("recetas");
+      const { data: files } = await bucket.list(p.id, { limit: 1000 });
+      if (files?.length) await bucket.remove(files.map(f => `${p.id}/${f.name}`));
+    }
+  }
+  await rpc("delete_my_account", {});
+  if (sbChannel) { sb.removeChannel(sbChannel); sbChannel = null; }
+  await sb.auth.signOut({ scope: "local" }).catch(() => {});
+  sbUser = null;
+}
+
 /* ---------- Antes de marcar una toma: ¿ya la dio alguien más? ---------- */
 
 async function syncCheckDose(key) {

@@ -1386,8 +1386,23 @@ function bind() {
   document.getElementById("btn-export").onclick = exportData;
   document.getElementById("file-import").onchange = e => { if (e.target.files[0]) importData(e.target.files[0]); e.target.value = ""; };
   document.getElementById("btn-wipe").onclick = async () => {
-    if (!(await ask({ title: "¿Borrar todos los datos?", text: "Se borrarán de este teléfono todos los medicamentos, el historial y las recetas. Los perfiles compartidos seguirán en el teléfono de tu familia.", ok: "Borrar todo", danger: true }))) return;
+    const shared = hasShared();
+    if (!(await ask({
+      title: "¿Borrar todos tus datos?",
+      text: "Se borrarán de este teléfono todos los medicamentos, el historial, las recetas y los ajustes." +
+        (shared ? " También se eliminará tu cuenta del servidor: saldrás de los perfiles compartidos y se borrarán los que solo usabas tú." : "") +
+        " No se puede deshacer.",
+      ok: "Borrar todo", danger: true
+    }))) return;
+    try {
+      toast("Borrando…");
+      await syncDeleteAccount();
+    } catch (e) {
+      ask({ title: "No se pudo borrar tu cuenta", text: friendlyError(e), ok: "Entendido", cancel: false });
+      return;
+    }
     localStorage.removeItem(STORE_KEY);
+    localStorage.removeItem("medihora-auth");
     rxClear().catch(() => {}).finally(() => location.reload());
   };
 
