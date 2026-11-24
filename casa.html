@@ -45,6 +45,8 @@ button{cursor:pointer}
 header.top{padding-block:20px 8px;display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
 header.top h1{font-size:1.75rem;font-weight:700;letter-spacing:-.01em}
 header.top .date{color:var(--muted);font-size:.9rem}
+.mock.live{color:var(--ok);border-style:solid;border-color:var(--ok)}
+.mock.warn{color:var(--warn);border-color:var(--warn)}
 .mock{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border:1px dashed var(--line);border-radius:999px;padding:3px 10px}
 
 .sec-title{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:22px 0 10px}
@@ -178,7 +180,7 @@ nav.bottom button[aria-current="page"]{color:var(--accent)}
       <div class="date" id="today"></div>
       <h1>Casa en Orden</h1>
     </div>
-    <span class="mock">Mock-up · datos de ejemplo</span>
+    <span class="mock" id="sync">Conectando…</span>
   </header>
   <main id="view"></main>
 </div>
@@ -219,9 +221,8 @@ const listJoin = a => a.length <= 1 ? (a[0] || "") : a.slice(0, -1).join(", ") +
 function toast(msg){ const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => t.hidden = true, 1800); }
 
 /* ---------- datos de ejemplo ---------- */
-const KEY = "casa_en_orden_v1";
+const KEY = "casa_en_orden_v2";
 function seed(){
-  const wk = iso(monday(TODAY));
   const ym = (n) => iso(new Date(TODAY.getFullYear(), TODAY.getMonth(), n));
   return {
     nombres: { yo: "Yo", ella: "Mi esposa" },
@@ -243,7 +244,6 @@ function seed(){
       { id: uid(), d: 5, t: "Limpieza general", w: "ambos" }, { id: uid(), d: 5, t: "Lavar el carro", w: "yo" },
       { id: uid(), d: 6, t: "Planear menú de la semana", w: "ella" },
     ],
-    done: { [wk]: {} },
     eventos: [
       { id: uid(), date: ym(Math.min(5, 28)), time: "18:00", t: "Junta de padres", cat: "escuela" },
       { id: uid(), date: ym(12), time: "10:30", t: "Pediatra (vacuna)", cat: "salud" },
@@ -266,6 +266,59 @@ function seed(){
 let S;
 try { S = JSON.parse(localStorage.getItem(KEY)) || seed(); } catch (e) { S = seed(); }
 function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+
+/* ---------- datos compartidos ----------
+   Con la app abierta en claude.ai, las listas viven en la base compartida
+   del artifact y se sincronizan en vivo entre los dos. Fuera de claude.ai
+   (archivo abierto directo) se guardan solo en este navegador. */
+const COLS = ["super", "semana", "eventos", "mant"];
+let DB = null, mode = "conectando", readOnly = false;
+const PREF_KEY = "casa_en_orden_pref_v1";
+function loadPrefs(){ try { const p = JSON.parse(localStorage.getItem(PREF_KEY)); if (p && p.sel) S.sel = p.sel; } catch (e) {} }
+function savePrefs(){ try { localStorage.setItem(PREF_KEY, JSON.stringify({ sel: S.sel })); } catch (e) {} if (!DB) save(); }
+function writeFail(e){
+  if (e && e.code === "invalid_argument") { readOnly = true; toast("Sin permiso para editar: pide acceso de Colaborador"); }
+  else if (e && e.code === "quota_exceeded") toast("La base está llena: borra elementos viejos");
+  else toast("No se pudo guardar. Revisa tu conexión.");
+  render();
+}
+const strip = o => { const c = Object.assign({}, o); delete c.id; return c; };
+const store = {
+  add(col, obj){ obj.id = obj.id || uid(); obj.c = Date.now();
+    if (DB) return DB.collection(col).doc(obj.id).set(strip(obj)).catch(writeFail);
+    S[col].push(obj); save(); render(); },
+  update(col, id, patch){
+    if (DB) return DB.collection(col).doc(id).update(patch).catch(writeFail);
+    const it = S[col].find(x => x.id === id); if (it) Object.assign(it, patch); save(); render(); },
+  remove(col, id){
+    if (DB) return DB.collection(col).doc(id).delete().catch(writeFail);
+    S[col] = S[col].filter(x => x.id !== id); save(); render(); },
+  setNames(n){
+    if (DB) return DB.doc("config/main").set({ nombres: n }).catch(writeFail);
+    S.nombres = n; save(); render(); },
+};
+async function connect(){
+  const api = window.claude && window.claude.use ? window.claude : null;
+  const db = api ? await api.use("db").catch(() => null) : null;
+  if (!db) { mode = "local"; return render(); }
+  DB = db; mode = "conectando";
+  COLS.forEach(c => S[c] = []);
+  S.nombres = { yo: "Yo", ella: "Mi esposa" };
+  loadPrefs(); render();
+  const pending = new Set(COLS.concat("config"));
+  const timer = setTimeout(() => { if (pending.size) { mode = "lento"; render(); } }, 10000);
+  const settle = (k, snap) => { if (!snap.metadata.fromCache) pending.delete(k); if (!pending.size) { clearTimeout(timer); mode = "vivo"; } render(); };
+  COLS.forEach(c => DB.collection(c).onSnapshot(snap => {
+    S[c] = snap.docs.map(d => Object.assign({ id: d.id }, d.data())).sort((a, b) => (a.c || 0) - (b.c || 0));
+    settle(c, snap);
+  }, () => { clearTimeout(timer); mode = "error"; render(); }));
+  DB.doc("config/main").onSnapshot(snap => {
+    const d = snap.exists ? snap.data() : null;
+    S.nombres = Object.assign({ yo: "Yo", ella: "Mi esposa" }, d && d.nombres);
+    settle("config", snap);
+  }, () => {});
+  try { const u = await api.use("user"); const w = u && await u.can("data.write"); if (w === false) { readOnly = true; render(); } } catch (e) {}
+}
 
 /* ---------- catálogo de comida ---------- */
 const PROT = {
@@ -379,7 +432,7 @@ let calMonth = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1);
 let calSel = iso(TODAY);
 
 const wkKey = () => iso(monday(TODAY));
-const doneMap = () => (S.done[wkKey()] = S.done[wkKey()] || {});
+const isDone = t => t.dw === wkKey();
 const nameOf = w => w === "yo" ? S.nombres.yo : w === "ella" ? S.nombres.ella : "Ambos";
 const pillWho = w => `<span class="pill p-${w}">${esc(nameOf(w))}</span>`;
 function mStatus(m){
@@ -392,14 +445,14 @@ const CATS = { escuela: "Escuela", salud: "Salud", familia: "Familia", cumple: "
 const SUPER_CATS = ["Frutas y verduras","Carnes","Lácteos","Despensa","Limpieza","Otro"];
 function addToSuper(items){
   let n = 0;
-  items.forEach(t => { if (!S.super.some(i => !i.ok && i.t.toLowerCase() === t.toLowerCase())) { S.super.push({ id: uid(), t: t.charAt(0).toUpperCase() + t.slice(1), cat: "Otro", ok: false }); n++; } });
-  save(); toast(n ? `${n} artículos agregados al súper` : "Ya estaban en la lista");
+  items.forEach(t => { if (!S.super.some(i => !i.ok && i.t.toLowerCase() === t.toLowerCase())) { store.add("super", { t: t.charAt(0).toUpperCase() + t.slice(1), cat: "Otro", ok: false }); n++; } });
+  toast(n ? `${n} artículos agregados al súper` : "Ya estaban en la lista");
 }
 
 function vInicio(){
-  const dIdx = (TODAY.getDay() + 6) % 7, dm = doneMap();
+  const dIdx = (TODAY.getDay() + 6) % 7;
   const hoy = S.semana.filter(t => t.d === dIdx);
-  const pend = hoy.filter(t => !dm[t.id]).length;
+  const pend = hoy.filter(t => !isDone(t)).length;
   const prox = S.eventos.filter(e => e.date >= iso(TODAY)).sort((a,b) => (a.date + a.time).localeCompare(b.date + b.time)).slice(0, 3);
   const mt = S.mant.map(m => ({ m, s: mStatus(m) })).filter(x => x.s.diff <= 14).sort((a,b) => a.s.diff - b.s.diff);
   const sup = S.super.filter(i => !i.ok);
@@ -417,7 +470,7 @@ function vInicio(){
   </section>
   <div class="grid2" style="margin-top:12px">
     <div class="card"><h3>Tareas de hoy <button class="link" data-go="agenda">Ver semana</button></h3>
-      ${hoy.length ? hoy.map(t => `<label class="check ${dm[t.id] ? "done" : ""}"><input type="checkbox" data-done="${t.id}" ${dm[t.id] ? "checked" : ""}><span class="t">${esc(t.t)}</span>${pillWho(t.w)}</label>`).join("") : `<div class="empty">Nada asignado hoy.</div>`}
+      ${hoy.length ? hoy.map(t => `<label class="check ${isDone(t) ? "done" : ""}"><input type="checkbox" data-done="${t.id}" ${isDone(t) ? "checked" : ""}><span class="t">${esc(t.t)}</span>${pillWho(t.w)}</label>`).join("") : `<div class="empty">Nada asignado hoy.</div>`}
     </div>
     <div class="card"><h3>Próximos eventos <button class="link" data-go="agenda" data-sub="mes">Calendario</button></h3>
       ${prox.length ? prox.map(evRow).join("") : `<div class="empty">Sin eventos próximos.</div>`}
@@ -451,7 +504,8 @@ function vComida(){
       </div>
       <div class="row"><button class="btn" id="nextLunch">Otra idea</button><button class="btn ghost" id="lunchSuper">Agregar ingredientes al súper</button></div>
     </div>
-    <div class="tip" style="margin-top:12px"><b>Para su edad:</b> corta uvas, jitomates cherry y salchichas a lo largo en cuartos; evita frutos secos enteros y palomitas sin supervisión (* revisa la política de la escuela). Porción aproximada: el tamaño de su puño por grupo.</div>`;
+    <div class="tip" style="margin-top:12px"><b>Para su edad:</b> corta uvas, jitomates cherry y salchichas a lo largo en cuartos; evita frutos secos enteros y palomitas sin supervisión (* revisa la política de la escuela). Porción aproximada: el tamaño de su puño por grupo.</div>
+    <p class="small muted" style="margin-top:10px">Ideas armadas con el criterio del Plato del Bien Comer: fruta, verdura, cereal y proteína en cada lunch, con agua natural y sin azúcar añadida. Son sugerencias generales; su pediatra puede ajustarlas a alergias o necesidades.</p>`;
   }
   return tabs + `
   <div class="sec-title"><h2>¿Qué tienes en casa?</h2><p>Elige y genera 3 ideas</p></div>
@@ -495,8 +549,8 @@ function evRow(e){
 function vAgenda(){
   const tabs = `<div class="seg" role="tablist"><button role="tab" data-sub="semana" aria-selected="${sub.agenda === "semana"}">Tareas de la semana</button><button role="tab" data-sub="mes" aria-selected="${sub.agenda === "mes"}">Calendario familiar</button></div>`;
   if (sub.agenda === "mes") return tabs + vMes();
-  const dm = doneMap(), mon = monday(TODAY), tIdx = (TODAY.getDay() + 6) % 7;
-  const count = w => { const all = S.semana.filter(t => t.w === w || t.w === "ambos"); return [all.filter(t => dm[t.id]).length, all.length]; };
+  const mon = monday(TODAY), tIdx = (TODAY.getDay() + 6) % 7;
+  const count = w => { const all = S.semana.filter(t => t.w === w || t.w === "ambos"); return [all.filter(isDone).length, all.length]; };
   const [yd, yt] = count("yo"), [ed, et] = count("ella");
   const vis = t => whoFilter === "todos" || t.w === whoFilter || t.w === "ambos";
   return tabs + `
@@ -517,7 +571,7 @@ function vAgenda(){
   <div class="stack" style="margin-top:12px">
     ${DIAS.map((d, i) => { const ts = S.semana.filter(t => t.d === i && vis(t)); return `<div class="card day ${i === tIdx ? "today" : ""}">
       <h3>${d} <span class="muted small" style="font-family:var(--f-body);font-weight:500">${fmtShort(addDays(mon, i))}${i === tIdx ? " · hoy" : ""}</span></h3>
-      ${ts.length ? ts.map(t => `<label class="check ${dm[t.id] ? "done" : ""}"><input type="checkbox" data-done="${t.id}" ${dm[t.id] ? "checked" : ""}><span class="t">${esc(t.t)}</span>${pillWho(t.w)}<button class="x" data-delwk="${t.id}" aria-label="Borrar">×</button></label>`).join("") : `<div class="empty">Libre</div>`}
+      ${ts.length ? ts.map(t => `<label class="check ${isDone(t) ? "done" : ""}"><input type="checkbox" data-done="${t.id}" ${isDone(t) ? "checked" : ""}><span class="t">${esc(t.t)}</span>${pillWho(t.w)}<button class="x" data-delwk="${t.id}" aria-label="Borrar">×</button></label>`).join("") : `<div class="empty">Libre</div>`}
     </div>`; }).join("")}
   </div>
   <div class="card" style="margin-top:12px"><div class="label" style="margin-bottom:6px">Nombres</div>
@@ -577,10 +631,21 @@ function vCasa(){
 }
 
 /* ---------- render y eventos ---------- */
+const SYNC = {
+  conectando: ["Conectando…", ""], vivo: ["Compartida · en vivo", "live"], lento: ["Sin conexión por ahora", "warn"],
+  error: ["No se pudo sincronizar", "warn"], local: ["Solo en este dispositivo", ""],
+};
 function render(){
   $("#today").textContent = fmtLong(TODAY);
+  const sy = $("#sync"), [txt, cls] = SYNC[mode] || SYNC.local;
+  sy.textContent = readOnly ? "Solo lectura" : txt; sy.className = "mock " + (readOnly ? "warn" : cls);
+  // conservar lo que se está escribiendo cuando llega un cambio del otro teléfono
+  const keep = {}; document.querySelectorAll("#view input[id], #view select[id]").forEach(el => keep[el.id] = el.value);
+  const focus = document.activeElement && document.activeElement.id;
   const html = { inicio: vInicio, comida: vComida, super: vSuper, agenda: vAgenda, casa: vCasa }[view]();
   $("#view").innerHTML = html;
+  Object.entries(keep).forEach(([id, v]) => { const el = document.getElementById(id); if (el && el.type !== "checkbox") el.value = v; });
+  if (focus) { const el = document.getElementById(focus); if (el && el.closest("#view")) el.focus(); }
   document.querySelectorAll("nav.bottom button").forEach(b => b.toggleAttribute("aria-current", false) || (b.dataset.go === view && b.setAttribute("aria-current", "page")));
 }
 function go(v, s){
@@ -595,40 +660,40 @@ document.addEventListener("click", e => {
   const d = b.dataset;
   if (d.go) { e.preventDefault(); return go(d.go, d.sub); }
   if (d.sub) { sub[view] = d.sub; return render(); }
-  if (d.chip) { const [k, v] = d.chip.split(":"); const a = S.sel[k]; const i = a.indexOf(v); i >= 0 ? a.splice(i, 1) : a.push(v); save(); return render(); }
+  if (d.chip) { const [k, v] = d.chip.split(":"); const a = S.sel[k]; const i = a.indexOf(v); i >= 0 ? a.splice(i, 1) : a.push(v); savePrefs(); return render(); }
   if (b.id === "gen") { genMenus(); render(); return document.querySelector(".dish")?.scrollIntoView({ behavior: "smooth", block: "start" }); }
   if (d.shop) return addToSuper(menus[+d.shop].shop);
   if (b.id === "nextLunch") { lunchIdx = (lunchIdx + 1) % LUNCHES.length; return render(); }
   if (b.id === "lunchSuper") { const L = LUNCHES[lunchIdx]; return addToSuper([L.p, L.f, L.v].map(s => s.split(/ con | en | cortad| a lo/)[0].trim())); }
-  if (d.delsup) { S.super = S.super.filter(i => i.id !== d.delsup); save(); return render(); }
-  if (b.id === "clearOk") { S.super = S.super.filter(i => !i.ok); save(); toast("Comprados eliminados"); return render(); }
+  if (d.delsup) return store.remove("super", d.delsup);
+  if (b.id === "clearOk") { S.super.filter(i => i.ok).forEach(i => store.remove("super", i.id)); return toast("Comprados eliminados"); }
   if (d.who) { whoFilter = d.who; return render(); }
-  if (d.delwk) { e.preventDefault(); S.semana = S.semana.filter(t => t.id !== d.delwk); save(); return render(); }
-  if (b.id === "saveNames") { S.nombres.yo = $("#n1").value.trim() || "Yo"; S.nombres.ella = $("#n2").value.trim() || "Mi esposa"; save(); toast("Nombres guardados"); return render(); }
+  if (d.delwk) { e.preventDefault(); return store.remove("semana", d.delwk); }
+  if (b.id === "saveNames") { store.setNames({ yo: $("#n1").value.trim() || "Yo", ella: $("#n2").value.trim() || "Mi esposa" }); return toast("Nombres guardados"); }
   if (d.day) { calSel = d.day; const dd = parse(d.day); if (dd.getMonth() !== calMonth.getMonth()) calMonth = new Date(dd.getFullYear(), dd.getMonth(), 1); return render(); }
   if (b.id === "prevM" || b.id === "nextM") { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + (b.id === "prevM" ? -1 : 1), 1); return render(); }
-  if (d.delev) { S.eventos = S.eventos.filter(x => x.id !== d.delev); save(); return render(); }
-  if (d.mtdone) { const m = S.mant.find(x => x.id === d.mtdone); m.last = iso(TODAY); save(); toast("Marcado como hecho hoy"); return render(); }
-  if (d.delmt) { S.mant = S.mant.filter(x => x.id !== d.delmt); save(); return render(); }
+  if (d.delev) return store.remove("eventos", d.delev);
+  if (d.mtdone) { store.update("mant", d.mtdone, { last: iso(TODAY) }); return toast("Marcado como hecho hoy"); }
+  if (d.delmt) return store.remove("mant", d.delmt);
 });
 document.addEventListener("change", e => {
   const t = e.target;
-  if (t.dataset.done) { const dm = doneMap(); dm[t.dataset.done] = t.checked; save(); return render(); }
-  if (t.dataset.sup) { const i = S.super.find(x => x.id === t.dataset.sup); i.ok = t.checked; save(); return render(); }
+  if (t.dataset.done) return store.update("semana", t.dataset.done, { dw: t.checked ? wkKey() : "" });
+  if (t.dataset.sup) return store.update("super", t.dataset.sup, { ok: t.checked });
 });
 document.addEventListener("submit", e => {
   e.preventDefault();
   const f = e.target.id;
-  if (f === "supForm") { const v = $("#supText").value.trim(); if (!v) return; S.super.push({ id: uid(), t: v, cat: $("#supCat").value, ok: false }); }
-  if (f === "wkForm") { const v = $("#wkText").value.trim(); if (!v) return; S.semana.push({ id: uid(), d: +$("#wkDay").value, t: v, w: $("#wkWho").value }); toast("Actividad asignada"); }
-  if (f === "evForm") { const v = $("#evText").value.trim(), dt = $("#evDate").value; if (!v || !dt) return; S.eventos.push({ id: uid(), date: dt, time: $("#evTime").value, t: v, cat: $("#evCat").value }); calSel = dt; toast("Evento agregado"); }
-  if (f === "mtForm") { const v = $("#mtText").value.trim(); if (!v) return; S.mant.push({ id: uid(), t: v, a: $("#mtArea").value, f: +$("#mtFreq").value, last: iso(TODAY) }); }
-  save(); render();
+  if (f === "supForm") { const v = $("#supText").value.trim(); if (!v) return; $("#supText").value = ""; store.add("super", { t: v, cat: $("#supCat").value, ok: false }); }
+  if (f === "wkForm") { const v = $("#wkText").value.trim(); if (!v) return; $("#wkText").value = ""; store.add("semana", { d: +$("#wkDay").value, t: v, w: $("#wkWho").value, dw: "" }); toast("Actividad asignada"); }
+  if (f === "evForm") { const v = $("#evText").value.trim(), dt = $("#evDate").value; if (!v || !dt) return; calSel = dt; $("#evText").value = ""; store.add("eventos", { date: dt, time: $("#evTime").value, t: v, cat: $("#evCat").value }); toast("Evento agregado"); }
+  if (f === "mtForm") { const v = $("#mtText").value.trim(); if (!v) return; $("#mtText").value = ""; store.add("mant", { t: v, a: $("#mtArea").value, f: +$("#mtFreq").value, last: iso(TODAY) }); }
   const again = document.getElementById(f)?.querySelector("input[type=text]"); if (again) again.focus();
 });
 
 genMenus();
 render();
+connect();
 })();
 </script>
 </body>
