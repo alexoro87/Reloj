@@ -463,7 +463,7 @@ function vAuth() {
       </form>
       <div class="field" style="margin-top:16px"><label>Elige tus colores</label>${temaPicker()}</div>
       ${authTab === "entrar" ? `<div class="row between" style="margin-top:12px"><button class="link" id="forgot" style="color:var(--m1)">Olvidé mi contraseña</button><button class="link" id="demo" style="color:var(--muted)">Probar sin cuenta</button></div>` : ""}
-    </section></div></main></div>`;
+    </section>${installCard() ? `<div style="max-width:440px;margin:12px auto 0">${installCard()}</div>` : ""}</div></main></div>`;
 }
 function vHogar() {
   return `<div class="auth v-inicio"><header class="hero gut"><div class="wrap"><div class="eyebrow">Un paso más</div><h1>Tu hogar</h1><p class="lead">Únete con el código que te comparta tu pareja, o crea un hogar nuevo.</p></div></header>
@@ -529,8 +529,8 @@ const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.
 function installCard() {
   if (standalone() || ls.get("casa-install-hide", false)) return "";
   if (deferredInstall) return `<div class="install"><p><b>Instala Casa en Orden</b><br>Ábrela como app desde tu pantalla de inicio.</p><button class="btn sm" id="doInstall">Instalar</button><button class="x" id="hideInstall" aria-label="Ocultar" style="color:inherit">×</button></div>`;
-  if (isIOS()) return `<div class="install"><p><b>Instálala en tu iPhone:</b> toca Compartir <span aria-hidden="true">⎋</span> y luego “Agregar a pantalla de inicio”.</p><button class="x" id="hideInstall" aria-label="Ocultar" style="color:inherit">×</button></div>`;
-  return "";
+  if (isIOS()) return `<div class="install"><p><b>Instálala en tu iPhone:</b> ábrela en Safari, toca Compartir <span aria-hidden="true">⎋</span> y luego “Agregar a pantalla de inicio”.</p><button class="x" id="hideInstall" aria-label="Ocultar" style="color:inherit">×</button></div>`;
+  return `<div class="install"><p><b>Bájala a tu cel:</b> en Chrome toca el menú <b>⋮</b> (arriba a la derecha) y elige <b>“Instalar app”</b> o “Agregar a la pantalla principal”.</p><button class="x" id="hideInstall" aria-label="Ocultar" style="color:inherit">×</button></div>`;
 }
 
 /* ---------- render ---------- */
