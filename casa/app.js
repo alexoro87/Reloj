@@ -278,7 +278,7 @@ function hero(v, eyebrow, title, lead) {
   const m = me();
   return `<header class="hero gut"><svg class="glyph" viewBox="0 0 24 24" aria-hidden="true">${GLYPH[v]}</svg><div class="wrap">
     <div class="bar"><button class="who-chip" id="openSheet" aria-label="Ajustes"><span class="av">${initial(m && m.display_name)}</span>${esc(S.households.find(h => h.id === S.hid)?.name || "")}</button>
-    <span class="sync ${S.sync === "vivo" ? "live" : ""}"><i></i>${SYNC[S.sync] || ""}</span></div>
+    <span class="row" style="gap:10px;flex-wrap:nowrap"><span class="sync ${S.sync === "vivo" ? "live" : ""}"><i></i>${SYNC[S.sync] || ""}</span><button class="who-chip" id="nextTema" aria-label="Cambiar colores" style="padding:6px"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4A5.6 5.6 0 0 0 22 9.8C22 5.5 17.5 2 12 2z"/></svg></button></span></div>
     <div class="eyebrow">${esc(eyebrow)}</div><h1>${title}</h1>${lead ? `<p class="lead">${lead}</p>` : ""}</div></header>`;
 }
 function mStatus(m) {
@@ -461,6 +461,7 @@ function vAuth() {
         <div class="err" id="aErr">${esc(authMsg)}</div>
         <button class="btn wide" ${authBusy ? "disabled" : ""}>${authTab === "crear" ? "Crear cuenta" : "Entrar"}</button>
       </form>
+      <div class="field" style="margin-top:16px"><label>Elige tus colores</label>${temaPicker()}</div>
       ${authTab === "entrar" ? `<div class="row between" style="margin-top:12px"><button class="link" id="forgot" style="color:var(--m1)">Olvidé mi contraseña</button><button class="link" id="demo" style="color:var(--muted)">Probar sin cuenta</button></div>` : ""}
     </section></div></main></div>`;
 }
@@ -487,12 +488,27 @@ function vNewPass() {
       <div class="err">${esc(authMsg)}</div><button class="btn wide">Guardar y entrar</button></form></div></main></div>`;
 }
 
+/* ---------- paletas ---------- */
+const TEMAS = { rosa: ["Rosa", "#E2468A", "#F2607A", "#F49BBE"], azul: ["Azul", "#2C6BE8", "#1E9BD7", "#8CBCF7"], morado: ["Morado", "#7A47E0", "#A657DE", "#BCA2F4"] };
+const temaActual = () => document.documentElement.dataset.tema || "rosa";
+function temaPicker() {
+  return `<div class="temas" role="group" aria-label="Paleta de colores">${Object.entries(TEMAS).map(([k, [n, a, b, c]]) =>
+    `<button class="tema" data-tema="${k}" aria-pressed="${temaActual() === k}"><span class="sw"><i style="background:${a}"></i><i style="background:${b}"></i><i style="background:${c}"></i></span>${n}</button>`).join("")}</div>`;
+}
+function setTema(k) {
+  if (!TEMAS[k]) return;
+  document.documentElement.dataset.tema = k; ls.set("casa-tema", k);
+  if ($("#sheet").innerHTML) openSheet();
+  render();
+}
+
 /* ---------- ajustes ---------- */
 function openSheet() {
   const m = me(), h = S.households.find(x => x.id === S.hid);
   $("#sheet").innerHTML = `<div class="sheet-bg" id="sheetBg"><div class="sheet" role="dialog" aria-modal="true" aria-label="Ajustes"><div class="grab"></div>
     <div class="stack">
       <h2 style="font-size:1.5rem">${esc(h ? h.name : "Mi hogar")}</h2>
+      <div class="field"><label>Colores de la app</label>${temaPicker()}</div>
       <div class="field"><label for="myName">Tu nombre en la app</label><div class="row" style="flex-wrap:nowrap"><input type="text" id="myName" value="${esc(m ? m.display_name : "")}"><button class="btn sm" id="saveName" style="background:var(--ink);color:var(--bg)">Guardar</button></div></div>
       ${api.kind === "supa" && h && h.code ? `<div class="field"><label>Código para invitar a tu esposa</label><div class="code">${esc(h.code)}</div>
         <div class="small muted">Ella instala la app, crea su cuenta y elige “Unirme con código”. Ojo: este mismo código también le da acceso a Finanzas Casa.</div>
@@ -553,6 +569,7 @@ document.addEventListener("click", async e => {
   const d = b.dataset;
   if (d.go) { e.preventDefault(); return go(d.go, d.sub); }
   if (d.sub) { sub[view] = d.sub; return render(); }
+  if (d.tema) return setTema(d.tema);
   if (d.auth) { authTab = d.auth; authMsg = ""; return render(); }
   if (d.chip) { const [k, v] = d.chip.split(":"), a = S.sel[k], i = a.indexOf(v); i >= 0 ? a.splice(i, 1) : a.push(v); ls.set("casa-sel", S.sel); return render(); }
   if (d.del) { e.preventDefault(); const [t, id] = d.del.split(":"); return del(t, id); }
@@ -567,6 +584,7 @@ document.addEventListener("click", async e => {
     case "clearOk": S.casa_super.filter(i => i.comprado).forEach(i => del("casa_super", i.id)); return toast("Comprados quitados de la lista");
     case "prevM": case "nextM": calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + (b.id === "prevM" ? -1 : 1), 1); return render();
     case "openSheet": return openSheet();
+    case "nextTema": { const ks = Object.keys(TEMAS), n = ks[(ks.indexOf(temaActual()) + 1) % ks.length]; setTema(n); return toast("Paleta " + TEMAS[n][0].toLowerCase()); }
     case "saveName": { const n = $("#myName").value.trim(); if (!n) return; const m = me(); if (m) m.display_name = n; closeSheet(); render(); return write(() => api.setMyName(S.hid, S.user.id, n), "Nombre guardado"); }
     case "copyCode": { const c = S.households.find(x => x.id === S.hid).code; try { await navigator.clipboard.writeText(c); toast("Código copiado"); } catch (err) { toast("Código: " + c); } return; }
     case "logout": closeSheet(); await api.signOut(); ls.del("casa-modo"); location.reload(); return;
