@@ -33,7 +33,8 @@ const ls = {
   del(k) { try { localStorage.removeItem(k); } catch (e) {} },
 };
 function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => t.hidden = true, 2200); }
-const TABLES = ["casa_super", "casa_tareas", "casa_eventos", "casa_mantenimiento"];
+const TABLES = ["casa_super", "casa_tareas", "casa_eventos", "casa_mantenimiento", "casa_medicinas", "casa_tomas", "casa_config"];
+const SINCE_TOMAS = () => new Date(Date.now() - 45 * 86400000).toISOString();
 
 /* ---------- backend: Supabase ---------- */
 function supaApi() {
@@ -58,7 +59,16 @@ function supaApi() {
     async createHousehold(name, display) { return must(await sb.rpc("create_household", { p_name: name, p_display_name: display })); },
     async joinHousehold(code, display) { return must(await sb.rpc("join_household", { p_code: code, p_display_name: display })); },
     async setMyName(hid, uid, name) { must(await sb.from("household_members").update({ display_name: name }).eq("household_id", hid).eq("user_id", uid)); },
-    async list(t, hid) { return must(await sb.from(t).select("*").eq("household_id", hid).order("created_at")); },
+    async list(t, hid) {
+      if (t === "casa_config") return must(await sb.from(t).select("*").eq("household_id", hid));
+      if (t === "casa_tomas") return must(await sb.from(t).select("*").eq("household_id", hid).gte("dada_en", SINCE_TOMAS()).order("dada_en"));
+      return must(await sb.from(t).select("*").eq("household_id", hid).order("created_at"));
+    },
+    async saveConfig(hid, p) { must(await sb.from("casa_config").upsert(Object.assign({ household_id: hid, updated_at: new Date().toISOString() }, p), { onConflict: "household_id" })); },
+    async vapidPublic() { return must(await sb.rpc("casa_vapid_public")); },
+    async saveSub(row) { must(await sb.from("casa_push_subscriptions").upsert(row, { onConflict: "endpoint" })); },
+    async removeSub(endpoint) { must(await sb.from("casa_push_subscriptions").delete().eq("endpoint", endpoint)); },
+    async testPush() { const r = await sb.functions.invoke("casa-notify", { body: { type: "test" } }); if (r.error) throw r.error; return r.data; },
     async insert(t, row) { return must(await sb.from(t).insert(row).select().single()); },
     async update(t, id, patch) { must(await sb.from(t).update(patch).eq("id", id)); },
     async remove(t, id) { must(await sb.from(t).delete().eq("id", id)); },
@@ -86,9 +96,11 @@ function demoApi() {
     async createHousehold() {}, async joinHousehold() {},
     async setMyName(hid, uid, name) { db.members.find(m => m.user_id === uid).display_name = name; persist(); },
     async list(t) { return (db[t] || []).slice(); },
-    async insert(t, row) { const r = Object.assign({ id: uuid(), created_at: new Date().toISOString() }, row); db[t].push(r); persist(); return r; },
+    async saveConfig(hid, p) { db.casa_config = [Object.assign({ household_id: hid }, (db.casa_config || [])[0], p)]; persist(); },
+    async vapidPublic() { throw new Error("demo"); }, async saveSub() {}, async removeSub() {}, async testPush() { throw new Error("demo"); },
+    async insert(t, row) { const r = Object.assign({ id: uuid(), created_at: new Date().toISOString() }, t === "casa_tomas" ? { dada_en: new Date().toISOString(), dada_por: "demo-yo" } : {}, row); (db[t] = db[t] || []).push(r); persist(); return r; },
     async update(t, id, patch) { const r = db[t].find(x => x.id === id); if (r) Object.assign(r, patch); persist(); },
-    async remove(t, id) { db[t] = db[t].filter(x => x.id !== id); persist(); },
+    async remove(t, id) { db[t] = (db[t] || []).filter(x => x.id !== id); if (t === "casa_medicinas") db.casa_tomas = (db.casa_tomas || []).filter(x => x.medicina_id !== id); persist(); },
     subscribe(hid, onChange, onStatus) { onStatus("demo"); },
   };
 }
@@ -113,6 +125,10 @@ function demoSeed() {
     casa_mantenimiento: [["Cambiar filtro del purificador", "Cocina", 90, -97], ["Limpiar campana de la estufa", "Cocina", 30, -24], ["Limpiar filtro del minisplit", "Recámaras", 60, -63],
       ["Revisar detectores de humo", "General", 180, -40], ["Fumigación", "General", 180, -150]]
       .map(([t, a, f, d]) => r({ texto: t, area: a, frecuencia_dias: f, ultima: iso(addDays(TODAY, d)) })),
+    casa_config: [{ household_id: H, nina_nombre: "Sofi" }],
+    casa_medicinas: [r({ id: "demo-med-1", nombre: "Amoxicilina", dosis: "5 ml", cada_horas: 8, inicio: new Date(Date.now() - 30 * 3600000).toISOString(), fin: iso(addDays(TODAY, 5)), notas: "Con alimento", activa: true, avisar: true }),
+      r({ id: "demo-med-2", nombre: "Paracetamol infantil", dosis: "4 ml", cada_horas: null, inicio: new Date().toISOString(), fin: null, notas: "Solo si tiene fiebre de 38 °C o más", activa: true, avisar: false })],
+    casa_tomas: [-30, -22, -14, -6.5].map(h => r({ medicina_id: "demo-med-1", dada_en: new Date(Date.now() + h * 3600000).toISOString(), dada_por: h === -14 ? "demo-ella" : "demo-yo" })),
   };
 }
 
@@ -120,10 +136,10 @@ function demoSeed() {
 let api = null;
 const S = {
   user: null, screen: "boot", hid: null, households: [], members: [], sync: "conectando",
-  casa_super: [], casa_tareas: [], casa_eventos: [], casa_mantenimiento: [],
+  casa_super: [], casa_tareas: [], casa_eventos: [], casa_mantenimiento: [], casa_medicinas: [], casa_tomas: [], casa_config: [],
   sel: ls.get("casa-sel", { p: ["pollo"], s: ["arroz"], v: ["brocoli", "zanahoria"] }),
 };
-const VIEWS = ["inicio", "comida", "super", "agenda", "casa"];
+const VIEWS = ["inicio", "comida", "super", "agenda", "salud", "casa"];
 let view = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "inicio";
 const sub = { comida: "menus", agenda: "semana" };
 let whoFilter = "todos", calMonth = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1), calSel = iso(TODAY);
@@ -134,6 +150,8 @@ const memberIdx = uid => S.members.findIndex(m => m.user_id === uid);
 const nameOf = uid => { if (!uid) return "Los dos"; const m = S.members.find(x => x.user_id === uid); return m ? (m.display_name || "Sin nombre") : "Ex-miembro"; };
 const pillWho = uid => `<span class="pill ${!uid ? "p-both" : memberIdx(uid) % 2 ? "p-m2" : "p-m1"}">${esc(nameOf(uid))}</span>`;
 const initial = s => esc((s || "?").trim().charAt(0).toUpperCase() || "?");
+const nina = () => ((S.casa_config[0] || {}).nina_nombre || "").trim();
+const ninaO = (fallback) => nina() || fallback;
 
 /* ---------- carga y sincronización ---------- */
 async function loadAll(t) {
@@ -141,7 +159,7 @@ async function loadAll(t) {
   try {
     const res = await Promise.all(list.map(x => api.list(x, S.hid)));
     list.forEach((x, i) => S[x] = res[i]);
-    ls.set("casa-cache-" + S.hid, { casa_super: S.casa_super, casa_tareas: S.casa_tareas, casa_eventos: S.casa_eventos, casa_mantenimiento: S.casa_mantenimiento });
+    const c = {}; TABLES.forEach(x => c[x] = S[x]); ls.set("casa-cache-" + S.hid, c);
     if (S.sync === "sin-conexion") S.sync = "vivo";
   } catch (e) { S.sync = "sin-conexion"; }
   render();
@@ -271,6 +289,7 @@ const GLYPH = {
   comida: '<path d="M4 3v8a3 3 0 0 0 3 3v7M7 3v6M10 3v8a3 3 0 0 1-3 3"/><path d="M17 21V3c-2 1-3 4-3 8h3"/>',
   super: '<path d="M3 4h2l2.4 11h11L21 7H6.2"/><circle cx="9" cy="19.5" r="1.5"/><circle cx="17" cy="19.5" r="1.5"/>',
   agenda: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  salud: '<rect x="3" y="8" width="18" height="8" rx="4" transform="rotate(-45 12 12)"/><path d="M9.2 9.2l5.6 5.6"/>',
   casa: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3 17.8V21h3.2l6.3-6.3a4 4 0 0 0 5.2-5.4l-2.4 2.4-2.8-.6-.6-2.8z"/>',
 };
 const SYNC = { conectando: "Conectando", vivo: "En vivo", "sin-conexion": "Sin conexión", demo: "Modo demo" };
@@ -327,6 +346,7 @@ function vInicio() {
         ${hoy.length ? hoy.map(t => taskRow(t)).join("") : `<div class="empty">Nada asignado para hoy.</div>`}</section>
       <section class="card"><div class="tile-head"><h3><i style="background:var(--c-comida)"></i>Próximos eventos</h3><button class="link" data-go="agenda" data-sub="mes">Calendario</button></div>
         ${prox.length ? prox.map(evRow).join("") : `<div class="empty">No hay eventos próximos.</div>`}</section>
+      ${medCardInicio()}
       <section class="card"><div class="tile-head"><h3><i style="background:var(--c-comida)"></i>Lunch de mañana</h3><button class="link" data-go="comida" data-sub="lunch">Más ideas</button></div>
         <b>${esc(L.n)}</b><div class="muted small">${esc(L.p)} · ${esc(L.f)} · ${esc(L.v)}</div></section>
       <section class="card"><div class="tile-head"><h3><i style="background:var(--c-casa)"></i>Casa: atender pronto</h3><button class="link" data-go="casa">Ver todo</button></div>
@@ -339,10 +359,10 @@ function chipGroup(key, cat) {
   return `<div class="chips">${Object.entries(cat).map(([k, v]) => `<button class="chip" data-chip="${key}:${k}" aria-pressed="${S.sel[key].includes(k)}">${esc(typeof v === "string" ? cap(v) : v.n)}</button>`).join("")}</div>`;
 }
 function vComida() {
-  const tabs = `<div class="seg" role="tablist"><button role="tab" data-sub="menus" aria-selected="${sub.comida === "menus"}">Menús saludables</button><button role="tab" data-sub="lunch" aria-selected="${sub.comida === "lunch"}">Lunch de la niña</button></div>`;
+  const tabs = `<div class="seg" role="tablist"><button role="tab" data-sub="menus" aria-selected="${sub.comida === "menus"}">Menús saludables</button><button role="tab" data-sub="lunch" aria-selected="${sub.comida === "lunch"}">Lunch de ${esc(ninaO("la niña"))}</button></div>`;
   if (sub.comida === "lunch") {
     const L = LUNCHES[lunchIdx];
-    return hero("comida", "Lunch para 4 años", "Lonchera lista", "Fruta, verdura, cereal y proteína en cada idea.") + `<main class="gut"><div class="wrap pull stack">${tabs}
+    return hero("comida", "Lunch para 4 años", nina() ? `Lonchera de ${esc(nina())}` : "Lonchera lista", "Fruta, verdura, cereal y proteína en cada idea.") + `<main class="gut"><div class="wrap pull stack">${tabs}
       <section class="card"><div class="row between"><span class="label">Idea ${lunchIdx + 1} de ${LUNCHES.length}</span></div>
         <h2 class="lunch-name" style="margin-top:6px">${esc(L.n)}</h2>
         <div class="lunchbox">
@@ -455,6 +475,100 @@ function vCasa() {
   </div></main>`;
 }
 
+/* ---------- medicinas ---------- */
+const fmtHora = d => d.toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit" });
+function fmtDur(ms) {
+  const m = Math.round(Math.abs(ms) / 60000), h = Math.floor(m / 60), r = m % 60;
+  return h ? `${h} h${r ? " " + r + " min" : ""}` : `${r} min`;
+}
+const tomasDe = id => S.casa_tomas.filter(t => t.medicina_id === id).sort((a, b) => a.dada_en.localeCompare(b.dada_en));
+function medEstado(m) {
+  const ts = tomasDe(m.id), last = ts.length ? new Date(ts[ts.length - 1].dada_en) : null;
+  const terminada = !m.activa || (m.fin && m.fin < iso(TODAY));
+  if (terminada) return { last, terminada: true, txt: "Terminada", cls: "p-both" };
+  if (!m.cada_horas) return { last, txt: "Solo si la necesita", cls: "p-both" };
+  const next = last ? new Date(+last + Number(m.cada_horas) * 3600000) : new Date(m.inicio), diff = next - Date.now();
+  if (diff > 0) return { last, next, diff, txt: `Siguiente ${fmtHora(next)} · en ${fmtDur(diff)}`, cls: diff < 30 * 60000 ? "p-warn" : "p-ok" };
+  return { last, next, diff, txt: `Le tocaba a las ${fmtHora(next)} · hace ${fmtDur(diff)}`, cls: "p-bad", tarde: true };
+}
+function medCardInicio() {
+  const act = S.casa_medicinas.filter(m => !medEstado(m).terminada);
+  if (!act.length) return "";
+  return `<section class="card"><div class="tile-head"><h3><i style="background:var(--c-salud)"></i>Medicinas de ${esc(ninaO("la niña"))}</h3><button class="link" data-go="salud">Ver</button></div>
+    ${act.map(m => { const st = medEstado(m); return `<div class="row between" style="padding:6px 0;flex-wrap:nowrap"><span style="min-width:0"><b>${esc(m.nombre)}</b>${m.dosis ? ` <span class="muted small">${esc(m.dosis)}</span>` : ""}</span><span class="pill ${st.cls}">${st.next ? (st.tarde ? "¡Ya toca!" : fmtHora(st.next)) : "Si la necesita"}</span></div>`; }).join("")}</section>`;
+}
+let medFormOpen = false;
+function vSalud() {
+  const meds = S.casa_medicinas.slice().sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const act = meds.filter(m => !medEstado(m).terminada), fin = meds.filter(m => medEstado(m).terminada);
+  const tarde = act.filter(m => medEstado(m).tarde).length;
+  const n = nina();
+  const card = m => { const st = medEstado(m), ts = tomasDe(m.id), hoy = ts.filter(t => iso(new Date(t.dada_en)) === iso(TODAY));
+    return `<article class="card med ${st.tarde ? "late" : ""}">
+      <div class="row between" style="flex-wrap:nowrap;align-items:flex-start"><div style="min-width:0"><h3 style="font-size:1.2rem">💊 ${esc(m.nombre)}</h3>
+        <div class="muted small">${[m.dosis, m.cada_horas ? `cada ${Number(m.cada_horas)} h` : "según necesidad", m.fin ? `hasta el ${fmtShort(parse(m.fin))}` : ""].filter(Boolean).map(esc).join(" · ")}</div></div>
+        <button class="x" data-del="casa_medicinas:${m.id}" aria-label="Borrar medicina">×</button></div>
+      ${m.notas ? `<div class="small" style="margin-top:6px">📝 ${esc(m.notas)}</div>` : ""}
+      ${st.terminada ? "" : `<div style="margin-top:10px"><span class="pill ${st.cls}">${esc(st.txt)}</span></div>`}
+      <div class="small muted" style="margin-top:8px">${st.last ? `Última: ${cap(fmtRel(st.last))} · ${esc(nameOf(ts[ts.length - 1].dada_por))}` : "Aún no se registra ninguna toma."}${hoy.length ? ` · ${hoy.length} hoy` : ""}</div>
+      <div class="row" style="margin-top:12px">${st.terminada ? `<button class="btn soft sm" data-medon="${m.id}">Reactivar</button>` : `<button class="btn" data-dar="${m.id}">Ya se la di</button><button class="btn soft sm" data-medoff="${m.id}">Terminar tratamiento</button>`}</div>
+    </article>`; };
+  const hist = S.casa_tomas.slice().sort((a, b) => b.dada_en.localeCompare(a.dada_en)).slice(0, 25);
+  const medName = id => (S.casa_medicinas.find(m => m.id === id) || {}).nombre || "Medicina";
+  return hero("salud", n ? `Salud de ${n}` : "Salud de la niña", tarde ? `${tarde === 1 ? "1 medicina" : tarde + " medicinas"} por dar` : act.length ? "Medicinas al día" : "Sin medicinas", act.length ? "Marca cada toma y los dos ven a qué hora le toca la siguiente." : "Agrega una medicina cuando la necesite y les avisamos a su hora.") + `<main class="gut"><div class="wrap pull stack">
+    ${!n ? `<div class="card small">¿Cómo se llama tu hija? Ponlo en <button class="link" id="openSheet2">Ajustes</button> y la app la llamará por su nombre.</div>` : ""}
+    ${act.map(card).join("") || `<section class="card empty">No hay tratamientos activos.</section>`}
+    ${medFormOpen ? `<form class="card addform" id="medForm"><h3>Nueva medicina</h3>
+      <div class="field"><label for="mNombre">Medicina</label><input type="text" id="mNombre" placeholder="Ej. Amoxicilina" required autocomplete="off"></div>
+      <div class="two"><div class="field"><label for="mDosis">Dosis</label><input type="text" id="mDosis" placeholder="Ej. 5 ml"></div>
+        <div class="field"><label for="mCada">Cada cuánto</label><select id="mCada">${[["", "Si la necesita"], ["4", "Cada 4 h"], ["6", "Cada 6 h"], ["8", "Cada 8 h"], ["12", "Cada 12 h"], ["24", "Cada 24 h"]].map(([v, l]) => `<option value="${v}" ${v === "8" ? "selected" : ""}>${l}</option>`).join("")}</select></div></div>
+      <div class="two"><div class="field"><label for="mHora">Primera toma (hoy)</label><input type="time" id="mHora" value="${pad(new Date().getHours())}:${pad(new Date().getMinutes())}"></div>
+        <div class="field"><label for="mDias">Días de tratamiento</label><select id="mDias"><option value="">Sin fecha fin</option>${[3, 5, 7, 10, 14].map(d => `<option value="${d}" ${d === 7 ? "selected" : ""}>${d} días</option>`).join("")}</select></div></div>
+      <div class="field"><label for="mNotas">Notas</label><input type="text" id="mNotas" placeholder="Ej. con alimento, agitar antes"></div>
+      <label class="check" style="border:0;padding:4px 0"><input type="checkbox" id="mYa" checked><span class="t">Ya se le dio la primera toma</span></label>
+      <label class="check" style="border:0;padding:4px 0"><input type="checkbox" id="mAvisar" checked><span class="t">Avisarnos a la hora de cada toma</span></label>
+      <div class="row"><button class="btn">Guardar medicina</button><button class="btn soft" type="button" id="medCancel">Cancelar</button></div>
+    </form>` : `<button class="btn wide" id="medNew">+ Agregar medicina</button>`}
+    <p class="small muted" style="margin:0 4px">Sigue siempre la indicación de su pediatra. La app solo ayuda a recordar horarios.</p>
+    ${hist.length ? `<div class="sec-title"><h2>Historial</h2><p>Últimas tomas</p></div><section class="card">${hist.map(t => { const d = new Date(t.dada_en); return `<div class="row between" style="padding:9px 0;border-bottom:1px solid var(--line);flex-wrap:nowrap"><span style="min-width:0"><b>${esc(medName(t.medicina_id))}</b><br><span class="small muted">${cap(fmtRel(d))} · ${esc(nameOf(t.dada_por))}</span></span><button class="x" data-del="casa_tomas:${t.id}" aria-label="Borrar toma">×</button></div>`; }).join("")}</section>` : ""}
+    ${fin.length ? `<div class="sec-title"><h2>Terminadas</h2></div>${fin.map(card).join("")}` : ""}
+  </div></main>`;
+}
+function fmtRel(d) {
+  const dd = new Date(d); dd.setHours(0, 0, 0, 0);
+  const k = daysBetween(dd, TODAY), dia = k === 0 ? "hoy" : k === 1 ? "ayer" : d.toLocaleDateString("es-MX", { weekday: "short", day: "numeric", month: "short" });
+  return `${dia} ${fmtHora(d)}`;
+}
+
+/* ---------- notificaciones ---------- */
+const pushSupported = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+let pushOn = false;
+async function refreshPushState() {
+  try { const reg = await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription(); pushOn = !!sub && Notification.permission === "granted"; }
+  catch (e) { pushOn = false; }
+}
+function b64u(s) { const pad = "=".repeat((4 - s.length % 4) % 4), b = atob((s + pad).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from(b, c => c.charCodeAt(0)); }
+async function enablePush() {
+  if (api.kind !== "supa") return toast("Los avisos funcionan con tu cuenta, no en el demo");
+  if (!pushSupported()) return toast(isIOS() ? "En iPhone primero instala la app en tu pantalla de inicio" : "Este navegador no permite avisos");
+  const perm = await Notification.requestPermission();
+  if (perm !== "granted") return toast("Permiso negado. Actívalo en los ajustes del navegador para este sitio.");
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const key = await api.vapidPublic();
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(key) });
+    const j = sub.toJSON();
+    await api.saveSub({ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, household_id: S.hid, user_id: S.user.id, user_agent: navigator.userAgent.slice(0, 300) });
+    pushOn = true; toast("Avisos activados en este teléfono");
+  } catch (e) { toast("No se pudieron activar los avisos"); }
+  openSheet();
+}
+async function disablePush() {
+  try { const reg = await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription(); if (sub) { await api.removeSub(sub.endpoint).catch(() => {}); await sub.unsubscribe(); } } catch (e) {}
+  pushOn = false; toast("Avisos desactivados en este teléfono"); openSheet();
+}
+
 /* ---------- acceso ---------- */
 function vAuth() {
   return `<div class="auth v-inicio"><header class="hero gut"><svg class="glyph" viewBox="0 0 24 24" aria-hidden="true">${GLYPH.inicio}</svg><div class="wrap">
@@ -515,6 +629,10 @@ function openSheet() {
     <div class="stack">
       <h2 style="font-size:1.5rem">${esc(h ? h.name : "Mi hogar")}</h2>
       <div class="field"><label>Colores de la app</label>${temaPicker()}</div>
+      <div class="field"><label for="ninaName">Nombre de tu hija</label><div class="row" style="flex-wrap:nowrap"><input type="text" id="ninaName" placeholder="Ej. Sofía" value="${esc(nina())}"><button class="btn sm" id="saveNina" style="background:var(--ink);color:var(--bg)">Guardar</button></div></div>
+      <div class="field"><label>Avisos en este teléfono</label>
+        <div class="small muted">Medicinas a su hora, eventos de hoy y mañana, tus tareas del día y mantenimiento pendiente (resumen a las 8:00).</div>
+        <div class="row">${pushOn ? `<span class="pill p-ok">Activados</span><button class="btn soft sm" id="pushTest" style="background:var(--sunk);color:var(--ink)">Probar</button><button class="link" id="pushOff" style="color:var(--bad)">Desactivar</button>` : `<button class="btn sm" id="pushOn" style="background:var(--c-inicio);color:#fff">🔔 Activar avisos</button>`}</div></div>
       <div class="field"><label for="myName">Tu nombre en la app</label><div class="row" style="flex-wrap:nowrap"><input type="text" id="myName" value="${esc(m ? m.display_name : "")}"><button class="btn sm" id="saveName" style="background:var(--ink);color:var(--bg)">Guardar</button></div></div>
       ${api.kind === "supa" && h && h.code ? `<div class="field"><label>Código para invitar a tu esposa</label><div class="code">${esc(h.code)}</div>
         <div class="small muted">Ella instala la app, crea su cuenta y elige “Unirme con código”. Ojo: este mismo código también le da acceso a Finanzas Casa.</div>
@@ -549,7 +667,7 @@ function render() {
   else if (S.screen === "auth") { html = vAuth(); cls = "v-inicio"; }
   else if (S.screen === "hogar") { html = vHogar(); cls = "v-inicio"; }
   else if (S.screen === "newpass") { html = vNewPass(); cls = "v-inicio"; }
-  else { html = { inicio: vInicio, comida: vComida, super: vSuper, agenda: vAgenda, casa: vCasa }[view](); cls = "v-" + view; }
+  else { html = { inicio: vInicio, comida: vComida, super: vSuper, agenda: vAgenda, salud: vSalud, casa: vCasa }[view](); cls = "v-" + view; }
   if (api && api.kind === "demo" && S.screen === "app") html = `<div class="demo-banner">Modo demo: datos de ejemplo guardados solo en este teléfono</div>` + html;
   document.body.className = cls;
   app.innerHTML = html;
@@ -579,7 +697,10 @@ document.addEventListener("click", async e => {
   if (d.emoji) { evEmoji = evEmoji === d.emoji ? null : d.emoji; return render(); }
   if (d.auth) { authTab = d.auth; authMsg = ""; return render(); }
   if (d.chip) { const [k, v] = d.chip.split(":"), a = S.sel[k], i = a.indexOf(v); i >= 0 ? a.splice(i, 1) : a.push(v); ls.set("casa-sel", S.sel); return render(); }
-  if (d.del) { e.preventDefault(); const [t, id] = d.del.split(":"); return del(t, id); }
+  if (d.dar) return add("casa_tomas", { medicina_id: d.dar, dada_en: new Date().toISOString(), dada_por: S.user.id }, "Toma registrada");
+  if (d.medoff) return patch("casa_medicinas", d.medoff, { activa: false }, "Tratamiento terminado");
+  if (d.medon) return patch("casa_medicinas", d.medon, { activa: true, fin: null }, "Tratamiento reactivado");
+  if (d.del) { e.preventDefault(); const [t, id] = d.del.split(":"); if (t === "casa_medicinas") S.casa_tomas = S.casa_tomas.filter(x => x.medicina_id !== id); return del(t, id); }
   if (d.who) { whoFilter = d.who; return render(); }
   if (d.day) { calSel = d.day; const dd = parse(d.day); if (dd.getMonth() !== calMonth.getMonth()) calMonth = new Date(dd.getFullYear(), dd.getMonth(), 1); return render(); }
   if (d.mtdone) return patch("casa_mantenimiento", d.mtdone, { ultima: iso(TODAY) }, "Listo, se programó la siguiente");
@@ -590,7 +711,13 @@ document.addEventListener("click", async e => {
     case "lunchSuper": return addToSuper(LUNCHES[lunchIdx].shop);
     case "clearOk": S.casa_super.filter(i => i.comprado).forEach(i => del("casa_super", i.id)); return toast("Comprados quitados de la lista");
     case "prevM": case "nextM": calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + (b.id === "prevM" ? -1 : 1), 1); return render();
-    case "openSheet": return openSheet();
+    case "openSheet": case "openSheet2": await refreshPushState(); return openSheet();
+    case "saveNina": { const n = $("#ninaName").value.trim(); S.casa_config = [Object.assign({ household_id: S.hid }, S.casa_config[0], { nina_nombre: n || null })]; closeSheet(); render(); return write(() => api.saveConfig(S.hid, { nina_nombre: n || null }), "Nombre guardado"); }
+    case "pushOn": return enablePush();
+    case "pushOff": return disablePush();
+    case "pushTest": try { await api.testPush(); toast("Enviado: debe llegarte en unos segundos"); } catch (err) { toast("No se pudo enviar la prueba"); } return;
+    case "medNew": medFormOpen = true; render(); return $("#mNombre") && $("#mNombre").focus();
+    case "medCancel": medFormOpen = false; return render();
     case "nextTema": { const ks = Object.keys(TEMAS), n = ks[(ks.indexOf(temaActual()) + 1) % ks.length]; setTema(n); return toast("Paleta " + TEMAS[n][0].toLowerCase()); }
     case "saveName": { const n = $("#myName").value.trim(); if (!n) return; const m = me(); if (m) m.display_name = n; closeSheet(); render(); return write(() => api.setMyName(S.hid, S.user.id, n), "Nombre guardado"); }
     case "copyCode": { const c = S.households.find(x => x.id === S.hid).code; try { await navigator.clipboard.writeText(c); toast("Código copiado"); } catch (err) { toast("Código: " + c); } return; }
@@ -617,6 +744,16 @@ document.addEventListener("submit", async e => {
   if (f === "supForm") { const v = val("supText"); if (!v) return; clear("supText"); return add("casa_super", { texto: v, pasillo: $("#supCat").value, comprado: false }); }
   if (f === "wkForm") { const v = val("wkText"); if (!v) return; clear("wkText"); return add("casa_tareas", { dia: +$("#wkDay").value, texto: v, asignado: $("#wkWho").value || null }, "Actividad asignada"); }
   if (f === "evForm") { const v = val("evText"), dt = $("#evDate").value; if (!v || !dt) return; clear("evText"); calSel = dt; const em = evEmoji; evEmoji = null; return add("casa_eventos", { fecha: dt, hora: $("#evTime").value || null, texto: v, tipo: $("#evCat").value, emoji: em }, "Evento agregado"); }
+  if (f === "medForm") {
+    const nombre = val("mNombre"); if (!nombre) return;
+    const [hh, mm] = ($("#mHora").value || "").split(":").map(Number), ini = new Date(); if (!isNaN(hh)) ini.setHours(hh, mm || 0, 0, 0);
+    const dias = +$("#mDias").value, cada = $("#mCada").value;
+    medFormOpen = false;
+    const mid = uuid(), ya = $("#mYa").checked;
+    await add("casa_medicinas", { id: mid, nombre, dosis: val("mDosis") || null, cada_horas: cada ? +cada : null, inicio: ini.toISOString(), fin: dias ? iso(addDays(TODAY, dias - 1)) : null, notas: val("mNotas") || null, activa: true, avisar: $("#mAvisar").checked }, "Medicina agregada");
+    if (ya && S.casa_medicinas.some(m => m.id === mid)) add("casa_tomas", { medicina_id: mid, dada_en: ini.toISOString(), dada_por: S.user.id });
+    return;
+  }
   if (f === "mtForm") { const v = val("mtText"); if (!v) return; clear("mtText"); return add("casa_mantenimiento", { texto: v, area: $("#mtArea").value, frecuencia_dias: +$("#mtFreq").value, ultima: iso(TODAY) }); }
   if (f === "authForm") {
     const em = val("aEmail"), pw = $("#aPass").value; authBusy = true; authMsg = ""; render();
@@ -651,6 +788,8 @@ function addToSuper(items) {
 
 /* ---------- arranque ---------- */
 genMenus();
+setInterval(() => { if (S.screen === "app" && !document.hidden && (view === "salud" || view === "inicio") && !(document.activeElement && /INPUT|SELECT/.test(document.activeElement.tagName))) render(); }, 60000);
+if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", e => { if (e.data && e.data.go && VIEWS.includes(e.data.go)) go(e.data.go); });
 render();
 if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
 if (ls.get("casa-modo", null) === "demo" || !window.supabase) {

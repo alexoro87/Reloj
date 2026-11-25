@@ -27,6 +27,7 @@
   --c-super:#D0479F;  --c-super-2:#EC87C6;  --c-super-ink:#FFFFFF;  --c-super-soft:#FBE2F2;
   --c-agenda:#B83A78; --c-agenda-2:#E2709F; --c-agenda-ink:#FFFFFF; --c-agenda-soft:#F8E0EB;
   --c-casa:#F49BBE;   --c-casa-2:#FCC9DC;   --c-casa-ink:#4A0F2C;   --c-casa-soft:#FDE9F1;
+  --c-salud:#E8577F;  --c-salud-2:#F7A6BA;  --c-salud-ink:#FFFFFF;  --c-salud-soft:#FDE5EC;
   --shadow:0 1px 2px rgba(120,20,70,.05),0 10px 28px -14px rgba(180,40,110,.28);
 }
 :root[data-tema="azul"]{
@@ -36,6 +37,7 @@
   --c-super:#178D9E;  --c-super-2:#4CC3C9;  --c-super-ink:#FFFFFF;  --c-super-soft:#DAF3F4;
   --c-agenda:#3B53C7; --c-agenda-2:#7B8FEA; --c-agenda-ink:#FFFFFF; --c-agenda-soft:#E3E8FB;
   --c-casa:#8CBCF7;   --c-casa-2:#C2DDFC;   --c-casa-ink:#0D2A55;   --c-casa-soft:#E6F0FD;
+  --c-salud:#2A7FD0;  --c-salud-2:#79BDF0;  --c-salud-ink:#FFFFFF;  --c-salud-soft:#E0EEFB;
   --shadow:0 1px 2px rgba(15,40,90,.05),0 10px 28px -14px rgba(30,80,180,.28);
 }
 :root[data-tema="morado"]{
@@ -45,6 +47,7 @@
   --c-super:#5B4ED0;  --c-super-2:#8F86EC;  --c-super-ink:#FFFFFF;  --c-super-soft:#E6E4FB;
   --c-agenda:#8C3DB6; --c-agenda-2:#BE7BDD; --c-agenda-ink:#FFFFFF; --c-agenda-soft:#F1E2F8;
   --c-casa:#BCA2F4;   --c-casa-2:#DCCDFA;   --c-casa-ink:#2B1260;   --c-casa-soft:#F0EAFD;
+  --c-salud:#9A4ED6;  --c-salud-2:#CC97EF;  --c-salud-ink:#FFFFFF;  --c-salud-soft:#F2E5FB;
   --shadow:0 1px 2px rgba(60,20,120,.05),0 10px 28px -14px rgba(100,50,200,.28);
 }
 :root{
@@ -58,6 +61,8 @@
 .v-comida{--sec:var(--c-comida);--sec-2:var(--c-comida-2);--sec-ink:var(--c-comida-ink);--sec-soft:var(--c-comida-soft)}
 .v-super{--sec:var(--c-super);--sec-2:var(--c-super-2);--sec-ink:var(--c-super-ink);--sec-soft:var(--c-super-soft)}
 .v-agenda{--sec:var(--c-agenda);--sec-2:var(--c-agenda-2);--sec-ink:var(--c-agenda-ink);--sec-soft:var(--c-agenda-soft)}
+.v-salud{--sec:var(--c-salud);--sec-2:var(--c-salud-2);--sec-ink:var(--c-salud-ink);--sec-soft:var(--c-salud-soft)}
+.med.late{box-shadow:0 0 0 2.5px var(--bad),var(--shadow)}
 .v-casa{--sec:var(--c-casa);--sec-2:var(--c-casa-2);--sec-ink:var(--c-casa-ink);--sec-soft:var(--c-casa-soft)}
 /* casa usa un tono claro: sus botones y casillas toman el tono oscuro de agenda para leerse bien */
 .v-casa .btn:not(.soft),.v-casa .check input:checked,.v-casa .seg button[aria-selected="true"],.v-casa nav.dock button[aria-current="page"]{background:var(--c-agenda);border-color:var(--c-agenda);color:#fff}
@@ -227,10 +232,10 @@ input:focus,select:focus{border-color:var(--sec);outline:none}
 /* nav flotante */
 nav.dock{position:fixed;left:0;right:0;bottom:0;z-index:20;pointer-events:none;
   padding:0 max(12px,env(safe-area-inset-left,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-right,0px))}
-nav.dock .in{pointer-events:auto;max-width:520px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr);gap:4px;padding:6px;
+nav.dock .in{pointer-events:auto;max-width:520px;margin:0 auto;display:grid;grid-template-columns:repeat(6,1fr);gap:2px;padding:6px;
   background:color-mix(in srgb,var(--surface) 86%,transparent);-webkit-backdrop-filter:blur(16px) saturate(1.4);backdrop-filter:blur(16px) saturate(1.4);
   border-radius:24px;box-shadow:0 12px 32px -10px rgba(0,0,0,.35),0 0 0 1px var(--line)}
-nav.dock button{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 2px 7px;color:var(--muted);font-size:.7rem;font-weight:700;border-radius:18px}
+nav.dock button{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0 7px;color:var(--muted);font-size:.66rem;min-width:0;font-weight:700;border-radius:18px}
 nav.dock svg{width:23px;height:23px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 nav.dock button[aria-current="page"]{background:var(--sec);color:var(--sec-ink)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom,0px));background:var(--c-inicio);color:#fff;padding:10px 18px;border-radius:999px;font-size:.9rem;font-weight:600;z-index:30;max-width:calc(100% - 32px);text-align:center}
@@ -276,6 +281,7 @@ nav.dock button[aria-current="page"]{background:var(--sec);color:var(--sec-ink)}
     <button data-go="comida"><svg viewBox="0 0 24 24"><path d="M4 3v8a3 3 0 0 0 3 3v7M7 3v6M10 3v8a3 3 0 0 1-3 3"/><path d="M17 21V3c-2 1-3 4-3 8h3"/></svg>Comida</button>
     <button data-go="super"><svg viewBox="0 0 24 24"><path d="M3 4h2l2.4 11h11L21 7H6.2"/><circle cx="9" cy="19.5" r="1.5"/><circle cx="17" cy="19.5" r="1.5"/></svg>Súper</button>
     <button data-go="agenda"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Agenda</button>
+    <button data-go="salud"><svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="8" rx="4" transform="rotate(-45 12 12)"/><path d="M9.2 9.2l5.6 5.6"/></svg>Salud</button>
     <button data-go="casa"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3 17.8V21h3.2l6.3-6.3a4 4 0 0 0 5.2-5.4l-2.4 2.4-2.8-.6-.6-2.8z"/></svg>Casa</button>
   </div>
 </nav>
