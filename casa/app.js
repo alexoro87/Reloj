@@ -458,9 +458,16 @@ function vMes(tabs) {
   </div></main>`;
 }
 
-const FREQ = [[7, "Semanal"], [15, "Quincenal"], [30, "Mensual"], [60, "Cada 2 meses"], [90, "Trimestral"], [180, "Semestral"], [365, "Anual"]];
-const freqLabel = f => !f ? "Una sola vez" : (FREQ.find(x => x[0] === f) || [0, `Cada ${f} días`])[1];
-let mtUna = false;
+const FREQ = [[1, "Diario"], [7, "Cada semana"], [14, "Cada 2 semanas"], [30, "Cada mes"], [60, "Cada 2 meses"], [90, "Cada 3 meses"], [180, "Cada 6 meses"], [365, "Cada año"]];
+const freqLabel = f => {
+  if (!f) return "Una sola vez";
+  const k = FREQ.find(x => x[0] === f); if (k) return k[1];
+  if (f % 365 === 0) return `Cada ${f / 365} años`;
+  if (f % 30 === 0) return `Cada ${f / 30} meses`;
+  if (f % 7 === 0) return `Cada ${f / 7} semanas`;
+  return `Cada ${f} días`;
+};
+let mtTipo = "30";
 function vCasa() {
   const list = S.casa_mantenimiento.filter(mPend).map(m => ({ m, s: mStatus(m) })).sort((a, b) => a.s.diff - b.s.diff);
   const hechas = S.casa_mantenimiento.filter(m => !mPend(m)).sort((a, b) => b.completada_en.localeCompare(a.completada_en));
@@ -469,13 +476,14 @@ function vCasa() {
     <form class="card addform" id="mtForm">
       <input type="text" id="mtText" placeholder="Ej. Limpiar canaletas" autocomplete="off" enterkeyhint="done">
       <div class="two"><select id="mtArea" aria-label="Área">${["General", "Cocina", "Baños", "Recámaras", "Exterior", "Auto"].map(a => `<option>${a}</option>`).join("")}</select>
-      <select id="mtFreq" aria-label="Frecuencia"><option value="una" ${mtUna ? "selected" : ""}>Una sola vez</option>${FREQ.map(([d, l]) => `<option value="${d}" ${!mtUna && d === 90 ? "selected" : ""}>${l}</option>`).join("")}</select></div>
-      <div class="field" ${mtUna ? "" : "hidden"}><label for="mtFecha">¿Para cuándo?</label><input type="date" id="mtFecha" value="${iso(addDays(TODAY, 7))}"></div>
+      <select id="mtFreq" aria-label="Cada cuánto"><option value="una" ${mtTipo === "una" ? "selected" : ""}>Una sola vez</option>${FREQ.map(([d, l]) => `<option value="${d}" ${mtTipo === String(d) ? "selected" : ""}>${l}</option>`).join("")}<option value="otra" ${mtTipo === "otra" ? "selected" : ""}>Otra…</option></select></div>
+      <div class="field" id="mtOtra" ${mtTipo === "otra" ? "" : "hidden"}><label for="mtN">Repetir cada</label><div class="two"><input type="number" id="mtN" min="1" max="365" value="3" inputmode="numeric" style="background:var(--bg);border:1.5px solid var(--line);border-radius:12px;padding:11px 12px;width:100%"><select id="mtUnidad" aria-label="Unidad"><option value="1">días</option><option value="7" selected>semanas</option><option value="30">meses</option></select></div></div>
+      <div class="field"><label for="mtFecha" id="mtFechaLbl">${mtTipo === "una" ? "¿Para cuándo?" : "¿Cuándo toca la primera vez?"}</label><input type="date" id="mtFecha" value="${iso(TODAY)}"></div>
       <button class="btn">Agregar</button>
     </form>
     <section class="card">${list.length ? list.map(({ m, s }) => `<div class="mt">
       <div class="ring" style="--p:${s.p};--rc:${s.col}"><span>${s.diff < 0 ? "!" : s.diff + "d"}</span></div>
-      <div class="t"><b>${esc(m.texto)}</b><span class="small muted">${esc(m.area)} · ${freqLabel(m.frecuencia_dias)} · ${unaVez(m) ? "para el" : "próxima"} ${fmtShort(s.next)}</span></div>
+      <div class="t"><b>${esc(m.texto)}</b><span class="small muted">${esc(m.area)} · ${freqLabel(m.frecuencia_dias)}${!unaVez(m) && m.fecha_inicio ? ` · desde ${fmtShort(parse(m.fecha_inicio))}` : ""} · ${unaVez(m) ? "para el" : "próxima"} ${fmtShort(s.next)}</span></div>
       <div class="mt-actions"><span class="pill ${s.cls}">${s.txt}</span><button class="btn sm" data-mtdone="${m.id}">Hecho</button></div>
       <button class="x" data-del="casa_mantenimiento:${m.id}" aria-label="Borrar">×</button></div>`).join("") : `<div class="empty">Agrega tareas como cambiar filtros, fumigar o arreglar la llave del baño.</div>`}</section>
     ${hechas.length ? `<div class="sec-title"><h2>Ya hechas</h2><p>Tareas de una sola vez</p></div><section class="card">${hechas.map(m => `<div class="check done" style="gap:10px"><span class="t">${esc(m.texto)}<br><span class="small muted">${esc(m.area)} · hecha el ${fmtShort(parse(m.completada_en))}</span></span><button class="link" data-mtundo="${m.id}">Deshacer</button><button class="x" data-del="casa_mantenimiento:${m.id}" aria-label="Borrar">×</button></div>`).join("")}</section>` : ""}
@@ -744,7 +752,7 @@ document.addEventListener("change", e => {
   const t = e.target;
   if (t.dataset.done) return patch("casa_tareas", t.dataset.done, { hecho_semana: t.checked ? wkKey() : null });
   if (t.dataset.sup) return patch("casa_super", t.dataset.sup, { comprado: t.checked });
-  if (t.id === "mtFreq") { mtUna = t.value === "una"; const f = $("#mtFecha"); if (f) f.closest(".field").hidden = !mtUna; return; }
+  if (t.id === "mtFreq") { mtTipo = t.value; $("#mtOtra").hidden = mtTipo !== "otra"; $("#mtFechaLbl").textContent = mtTipo === "una" ? "¿Para cuándo?" : "¿Cuándo toca la primera vez?"; return; }
   if (t.id === "hSel") { ls.set("casa-hogar", t.value); location.reload(); }
 });
 document.addEventListener("submit", async e => {
@@ -763,7 +771,14 @@ document.addEventListener("submit", async e => {
     if (ya && S.casa_medicinas.some(m => m.id === mid)) add("casa_tomas", { medicina_id: mid, dada_en: ini.toISOString(), dada_por: S.user.id });
     return;
   }
-  if (f === "mtForm") { const v = val("mtText"); if (!v) return; const una = $("#mtFreq").value === "una", fl = $("#mtFecha").value || iso(addDays(TODAY, 7)); clear("mtText"); return add("casa_mantenimiento", { texto: v, area: $("#mtArea").value, frecuencia_dias: una ? null : +$("#mtFreq").value, fecha_limite: una ? fl : null, ultima: iso(TODAY) }, una ? "Tarea agregada" : null); }
+  if (f === "mtForm") {
+    const v = val("mtText"); if (!v) return;
+    const tipo = $("#mtFreq").value, fecha = $("#mtFecha").value || iso(TODAY);
+    if (tipo === "una") { clear("mtText"); return add("casa_mantenimiento", { texto: v, area: $("#mtArea").value, frecuencia_dias: null, fecha_limite: fecha, ultima: iso(TODAY) }, "Tarea agregada"); }
+    const freq = tipo === "otra" ? Math.round(Math.max(1, Math.min(365, +$("#mtN").value || 1)) * +$("#mtUnidad").value) : +tipo;
+    clear("mtText");
+    return add("casa_mantenimiento", { texto: v, area: $("#mtArea").value, frecuencia_dias: Math.min(freq, 3650), fecha_inicio: fecha, ultima: iso(addDays(parse(fecha), -freq)) }, `Agregada: ${freqLabel(freq).toLowerCase()}, primera vez el ${fmtShort(parse(fecha))}`);
+  }
   if (f === "authForm") {
     const em = val("aEmail"), pw = $("#aPass").value; authBusy = true; authMsg = ""; render();
     try {
