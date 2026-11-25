@@ -1,4 +1,5 @@
 {
+  "id": "/Reloj/casa/",
   "name": "Casa en Orden",
   "short_name": "Casa",
   "description": "Menús, lunch, súper, tareas, calendario familiar y mantenimiento de la casa.",
@@ -10,12 +11,34 @@
   "background_color": "#FFF5F9",
   "theme_color": "#E2468A",
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ],
   "shortcuts": [
-    { "name": "Lista del súper", "url": "./#super" },
-    { "name": "Agenda", "url": "./#agenda" }
-  ]
+    {
+      "name": "Lista del súper",
+      "url": "./#super"
+    },
+    {
+      "name": "Agenda",
+      "url": "./#agenda"
+    }
+  ],
+  "prefer_related_applications": false
 }
