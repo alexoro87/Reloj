@@ -107,9 +107,9 @@ function demoSeed() {
       [2, "Cocinar la cena", "demo-yo"], [2, "Regar plantas", "demo-ella"], [3, "Planchar uniforme", "demo-ella"], [4, "Hacer el súper", null],
       [5, "Limpieza general", null], [5, "Lavar el carro", "demo-yo"], [6, "Planear menú de la semana", "demo-ella"]]
       .map(([d, t, a]) => r({ dia: d, texto: t, asignado: a, hecho_semana: null })),
-    casa_eventos: [r({ fecha: ym(5), hora: "18:00", texto: "Junta de padres", tipo: "escuela" }), r({ fecha: iso(addDays(TODAY, 2)), hora: null, texto: "Cena con los abuelos", tipo: "familia" }),
-      r({ fecha: iso(addDays(TODAY, 6)), hora: "16:00", texto: "Cumpleaños de la prima", tipo: "cumple" }), r({ fecha: iso(addDays(TODAY, 11)), hora: "09:00", texto: "Festival escolar", tipo: "escuela" }),
-      r({ fecha: ym(20), hora: "10:30", texto: "Pediatra", tipo: "salud" })],
+    casa_eventos: [r({ fecha: ym(5), hora: "18:00", texto: "Junta de padres", tipo: "escuela", emoji: "📚" }), r({ fecha: iso(addDays(TODAY, 2)), hora: null, texto: "Cena con los abuelos", tipo: "familia" }),
+      r({ fecha: iso(addDays(TODAY, 6)), hora: "16:00", texto: "Cumpleaños de la prima", tipo: "cumple", emoji: "🎈" }), r({ fecha: iso(addDays(TODAY, 11)), hora: "09:00", texto: "Festival escolar", tipo: "escuela", emoji: "🎵" }),
+      r({ fecha: ym(20), hora: "10:30", texto: "Pediatra", tipo: "salud", emoji: "💉" })],
     casa_mantenimiento: [["Cambiar filtro del purificador", "Cocina", 90, -97], ["Limpiar campana de la estufa", "Cocina", 30, -24], ["Limpiar filtro del minisplit", "Recámaras", 60, -63],
       ["Revisar detectores de humo", "General", 180, -40], ["Fumigación", "General", 180, -150]]
       .map(([t, a, f, d]) => r({ texto: t, area: a, frecuencia_dias: f, ultima: iso(addDays(TODAY, d)) })),
@@ -290,13 +290,18 @@ function mStatus(m) {
 }
 const isDone = t => t.hecho_semana === wkKey();
 const CATS = { escuela: "Escuela", salud: "Salud", familia: "Familia", cumple: "Cumpleaños", otro: "Pagos / otro" };
+const TIPO_EMOJI = { escuela: "🏫", salud: "🩺", familia: "👨‍👩‍👧", cumple: "🎂", otro: "💳" };
+const EMOJIS = ["🎂", "🎉", "🎁", "🎈", "🏫", "📚", "🎒", "🖍️", "🩺", "💉", "🦷", "💊", "👨‍👩‍👧", "👵", "👴", "❤️", "🍽️", "🍕", "⚽", "🏀",
+  "🩰", "🏊", "🎵", "🎬", "✈️", "🏖️", "🚗", "💳", "🏠", "🐶", "⛪", "🎄", "🎃", "💐", "⭐"];
+const emojiOf = e => e.emoji || TIPO_EMOJI[e.tipo] || "📌";
+let evEmoji = null;
 const PASILLOS = ["Frutas y verduras", "Carnes", "Lácteos", "Despensa", "Limpieza", "Otro"];
 const greet = () => { const h = new Date().getHours(); return h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches"; };
 
 function evRow(e) {
   const d = parse(e.fecha);
   return `<div class="ev t-${esc(e.tipo)}"><div class="date"><b>${d.getDate()}</b><span>${d.toLocaleDateString("es-MX", { month: "short" }).replace(".", "")}</span></div>
-    <div class="t"><b>${esc(e.texto)}</b><div class="when">${cap(d.toLocaleDateString("es-MX", { weekday: "long" }))}${e.hora ? " · " + esc(String(e.hora).slice(0, 5)) : ""} · ${CATS[e.tipo] || ""}</div></div>
+    <span class="emo" aria-hidden="true">${esc(emojiOf(e))}</span><div class="t"><b>${esc(e.texto)}</b><div class="when">${cap(d.toLocaleDateString("es-MX", { weekday: "long" }))}${e.hora ? " · " + esc(String(e.hora).slice(0, 5)) : ""} · ${CATS[e.tipo] || ""}</div></div>
     <button class="x" data-del="casa_eventos:${e.id}" aria-label="Borrar evento">×</button></div>`;
 }
 function taskRow(t, withDel) {
@@ -411,7 +416,7 @@ function vMes(tabs) {
     <section class="card">
       <div class="cal-head"><button class="x" id="prevM" aria-label="Mes anterior">‹</button><h3>${cap(calMonth.toLocaleDateString("es-MX", { month: "long", year: "numeric" }).replace(" de ", " "))}</h3><button class="x" id="nextM" aria-label="Mes siguiente">›</button></div>
       <div class="cal">${["L", "M", "M", "J", "V", "S", "D"].map(d => `<div class="dow">${d}</div>`).join("")}
-        ${cells.map(d => { const k = iso(d), ev = byDay[k] || []; return `<button class="d ${d.getMonth() !== m ? "out" : ""} ${k === iso(TODAY) ? "today" : ""} ${k === calSel ? "sel" : ""}" data-day="${k}" aria-label="${fmtLong(d)}${ev.length ? ", " + ev.length + " eventos" : ""}"><span>${d.getDate()}</span><span class="dots">${ev.slice(0, 3).map(e => `<i class="t-${esc(e.tipo)}"></i>`).join("")}</span></button>`; }).join("")}
+        ${cells.map(d => { const k = iso(d), ev = byDay[k] || []; return `<button class="d ${d.getMonth() !== m ? "out" : ""} ${k === iso(TODAY) ? "today" : ""} ${k === calSel ? "sel" : ""}" data-day="${k}" aria-label="${fmtLong(d)}${ev.length ? ", " + ev.length + " eventos" : ""}"><span>${d.getDate()}</span><span class="emos">${ev.slice(0, 2).map(e => `<i>${esc(emojiOf(e))}</i>`).join("")}${ev.length > 2 ? `<small>+${ev.length - 2}</small>` : ""}</span></button>`; }).join("")}
       </div>
       <div class="legend">${Object.entries(CATS).map(([k, v]) => `<span class="t-${k}"><i></i>${v}</span>`).join("")}</div>
     </section>
@@ -421,6 +426,7 @@ function vMes(tabs) {
       <form class="addform" id="evForm" style="margin-top:10px">
         <input type="text" id="evText" placeholder="Reunión, cita, cumpleaños…" autocomplete="off" enterkeyhint="done">
         <div class="two"><input type="date" id="evDate" value="${calSel}" aria-label="Fecha"><input type="time" id="evTime" aria-label="Hora"></div>
+        <div class="field"><label>Emoji${evEmoji ? "" : " (automático según el tipo)"}</label><div class="emojis" role="group" aria-label="Emoji del evento">${EMOJIS.map(x => `<button type="button" class="emo-btn" data-emoji="${x}" aria-pressed="${evEmoji === x}">${x}</button>`).join("")}</div></div>
         <div class="two"><select id="evCat" aria-label="Tipo">${Object.entries(CATS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select><button class="btn">Agregar</button></div>
       </form>
     </section>
@@ -570,6 +576,7 @@ document.addEventListener("click", async e => {
   if (d.go) { e.preventDefault(); return go(d.go, d.sub); }
   if (d.sub) { sub[view] = d.sub; return render(); }
   if (d.tema) return setTema(d.tema);
+  if (d.emoji) { evEmoji = evEmoji === d.emoji ? null : d.emoji; return render(); }
   if (d.auth) { authTab = d.auth; authMsg = ""; return render(); }
   if (d.chip) { const [k, v] = d.chip.split(":"), a = S.sel[k], i = a.indexOf(v); i >= 0 ? a.splice(i, 1) : a.push(v); ls.set("casa-sel", S.sel); return render(); }
   if (d.del) { e.preventDefault(); const [t, id] = d.del.split(":"); return del(t, id); }
@@ -609,7 +616,7 @@ document.addEventListener("submit", async e => {
   const f = e.target.id, val = id => $("#" + id).value.trim(), clear = id => { $("#" + id).value = ""; };
   if (f === "supForm") { const v = val("supText"); if (!v) return; clear("supText"); return add("casa_super", { texto: v, pasillo: $("#supCat").value, comprado: false }); }
   if (f === "wkForm") { const v = val("wkText"); if (!v) return; clear("wkText"); return add("casa_tareas", { dia: +$("#wkDay").value, texto: v, asignado: $("#wkWho").value || null }, "Actividad asignada"); }
-  if (f === "evForm") { const v = val("evText"), dt = $("#evDate").value; if (!v || !dt) return; clear("evText"); calSel = dt; return add("casa_eventos", { fecha: dt, hora: $("#evTime").value || null, texto: v, tipo: $("#evCat").value }, "Evento agregado"); }
+  if (f === "evForm") { const v = val("evText"), dt = $("#evDate").value; if (!v || !dt) return; clear("evText"); calSel = dt; const em = evEmoji; evEmoji = null; return add("casa_eventos", { fecha: dt, hora: $("#evTime").value || null, texto: v, tipo: $("#evCat").value, emoji: em }, "Evento agregado"); }
   if (f === "mtForm") { const v = val("mtText"); if (!v) return; clear("mtText"); return add("casa_mantenimiento", { texto: v, area: $("#mtArea").value, frecuencia_dias: +$("#mtFreq").value, ultima: iso(TODAY) }); }
   if (f === "authForm") {
     const em = val("aEmail"), pw = $("#aPass").value; authBusy = true; authMsg = ""; render();

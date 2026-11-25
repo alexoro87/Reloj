@@ -192,6 +192,13 @@ input:focus,select:focus{border-color:var(--sec);outline:none}
 .cal button.d.out{background:transparent;color:var(--muted);opacity:.45}
 .cal button.d.today{box-shadow:inset 0 0 0 2px var(--sec)}
 .cal button.d.sel{background:var(--sec);color:var(--sec-ink)}
+.emos{display:flex;align-items:center;justify-content:center;margin-top:auto;line-height:1;font-size:.82rem;gap:1px}
+.emos i{font-style:normal}
+.emos small{font-size:.6rem;font-weight:700;margin-left:1px}
+.ev .emo{flex:none;font-size:1.55rem;line-height:1;width:34px;height:34px;display:grid;place-items:center;margin-top:6px}
+.emojis{display:grid;grid-template-columns:repeat(auto-fill,minmax(42px,1fr));gap:6px}
+.emo-btn{font-size:1.3rem;height:42px;border-radius:12px;border:2px solid transparent;background:var(--sunk);line-height:1;padding:0}
+.emo-btn[aria-pressed="true"]{border-color:var(--sec);background:var(--sec-soft);transform:scale(1.06)}
 .dots{display:flex;gap:3px;margin-top:auto;justify-content:center;flex-wrap:wrap}
 .dots i{width:6px;height:6px;border-radius:50%;background:var(--c)}
 .cal button.d.sel .dots i{box-shadow:0 0 0 1.5px var(--sec-ink)}
