@@ -124,7 +124,8 @@ function demoSeed() {
       r({ fecha: ym(20), hora: "10:30", texto: "Pediatra", tipo: "salud", emoji: "💉" })],
     casa_mantenimiento: [["Cambiar filtro del purificador", "Cocina", 90, -97], ["Limpiar campana de la estufa", "Cocina", 30, -24], ["Limpiar filtro del minisplit", "Recámaras", 60, -63],
       ["Revisar detectores de humo", "General", 180, -40], ["Fumigación", "General", 180, -150]]
-      .map(([t, a, f, d]) => r({ texto: t, area: a, frecuencia_dias: f, ultima: iso(addDays(TODAY, d)) })),
+      .map(([t, a, f, d]) => r({ texto: t, area: a, frecuencia_dias: f, ultima: iso(addDays(TODAY, d)) }))
+      .concat([r({ texto: "Arreglar la llave del baño", area: "Baños", frecuencia_dias: null, fecha_limite: iso(addDays(TODAY, 3)), ultima: iso(TODAY) })]),
     casa_config: [{ household_id: H, nina_nombre: "Sofi" }],
     casa_medicinas: [r({ id: "demo-med-1", nombre: "Amoxicilina", dosis: "5 ml", cada_horas: 8, inicio: new Date(Date.now() - 30 * 3600000).toISOString(), fin: iso(addDays(TODAY, 5)), notas: "Con alimento", activa: true, avisar: true }),
       r({ id: "demo-med-2", nombre: "Paracetamol infantil", dosis: "4 ml", cada_horas: null, inicio: new Date().toISOString(), fin: null, notas: "Solo si tiene fiebre de 38 °C o más", activa: true, avisar: false })],
@@ -300,12 +301,14 @@ function hero(v, eyebrow, title, lead) {
     <span class="row" style="gap:10px;flex-wrap:nowrap"><span class="sync ${S.sync === "vivo" ? "live" : ""}"><i></i>${SYNC[S.sync] || ""}</span><button class="who-chip" id="nextTema" aria-label="Cambiar colores" style="padding:6px"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4A5.6 5.6 0 0 0 22 9.8C22 5.5 17.5 2 12 2z"/></svg></button></span></div>
     <div class="eyebrow">${esc(eyebrow)}</div><h1>${title}</h1>${lead ? `<p class="lead">${lead}</p>` : ""}</div></header>`;
 }
+const unaVez = m => !m.frecuencia_dias;
+const mPend = m => !m.completada_en;
 function mStatus(m) {
-  const next = addDays(parse(m.ultima), m.frecuencia_dias), diff = daysBetween(TODAY, next);
-  const p = Math.max(0, Math.min(100, Math.round(100 * (1 - diff / m.frecuencia_dias))));
+  const una = unaVez(m), next = una ? parse(m.fecha_limite) : addDays(parse(m.ultima), m.frecuencia_dias), diff = daysBetween(TODAY, next);
+  const p = Math.max(0, Math.min(100, Math.round(100 * (1 - diff / (una ? 14 : m.frecuencia_dias)))));
   if (diff < 0) return { next, diff, p: 100, cls: "p-bad", txt: `Vencido hace ${-diff} d`, col: "var(--bad)" };
   if (diff <= 14) return { next, diff, p, cls: "p-warn", txt: diff === 0 ? "Toca hoy" : `En ${diff} d`, col: "var(--warn)" };
-  return { next, diff, p, cls: "p-ok", txt: "Al día", col: "var(--ok)" };
+  return { next, diff, p, cls: "p-ok", txt: una ? `Faltan ${diff} d` : "Al día", col: "var(--ok)" };
 }
 const isDone = t => t.hecho_semana === wkKey();
 const CATS = { escuela: "Escuela", salud: "Salud", familia: "Familia", cumple: "Cumpleaños", otro: "Pagos / otro" };
@@ -330,7 +333,7 @@ function taskRow(t, withDel) {
 function vInicio() {
   const dIdx = (TODAY.getDay() + 6) % 7, hoy = S.casa_tareas.filter(t => t.dia === dIdx), pend = hoy.filter(t => !isDone(t)).length;
   const prox = S.casa_eventos.filter(e => e.fecha >= iso(TODAY)).sort((a, b) => (a.fecha + (a.hora || "")).localeCompare(b.fecha + (b.hora || ""))).slice(0, 3);
-  const mt = S.casa_mantenimiento.map(m => ({ m, s: mStatus(m) })).filter(x => x.s.diff <= 14).sort((a, b) => a.s.diff - b.s.diff);
+  const mt = S.casa_mantenimiento.filter(mPend).map(m => ({ m, s: mStatus(m) })).filter(x => x.s.diff <= 14).sort((a, b) => a.s.diff - b.s.diff);
   const sup = S.casa_super.filter(i => !i.comprado), L = LUNCHES[lunchIdx], m = me();
   return hero("inicio", fmtLong(TODAY), `${greet()}${m && m.display_name ? ", " + esc(m.display_name) : ""}`, pend ? `Hoy quedan ${pend} ${pend === 1 ? "pendiente" : "pendientes"} en casa.` : "Lo de hoy ya está hecho.") + `
   <main class="gut"><div class="wrap pull stack">
@@ -456,22 +459,26 @@ function vMes(tabs) {
 }
 
 const FREQ = [[7, "Semanal"], [15, "Quincenal"], [30, "Mensual"], [60, "Cada 2 meses"], [90, "Trimestral"], [180, "Semestral"], [365, "Anual"]];
-const freqLabel = f => (FREQ.find(x => x[0] === f) || [0, `Cada ${f} días`])[1];
+const freqLabel = f => !f ? "Una sola vez" : (FREQ.find(x => x[0] === f) || [0, `Cada ${f} días`])[1];
+let mtUna = false;
 function vCasa() {
-  const list = S.casa_mantenimiento.map(m => ({ m, s: mStatus(m) })).sort((a, b) => a.s.diff - b.s.diff);
+  const list = S.casa_mantenimiento.filter(mPend).map(m => ({ m, s: mStatus(m) })).sort((a, b) => a.s.diff - b.s.diff);
+  const hechas = S.casa_mantenimiento.filter(m => !mPend(m)).sort((a, b) => b.completada_en.localeCompare(a.completada_en));
   const venc = list.filter(x => x.s.diff < 0).length;
-  return hero("casa", "Mantenimiento", venc ? `${venc} ${venc === 1 ? "pendiente vencido" : "pendientes vencidos"}` : "La casa está al día", "Marca “Hecho” y se programa la siguiente vez.") + `<main class="gut"><div class="wrap pull stack">
+  return hero("casa", "Mantenimiento", venc ? `${venc} ${venc === 1 ? "pendiente vencido" : "pendientes vencidos"}` : "La casa está al día", "Las tareas que se repiten se vuelven a programar al marcarlas como hechas.") + `<main class="gut"><div class="wrap pull stack">
     <form class="card addform" id="mtForm">
       <input type="text" id="mtText" placeholder="Ej. Limpiar canaletas" autocomplete="off" enterkeyhint="done">
       <div class="two"><select id="mtArea" aria-label="Área">${["General", "Cocina", "Baños", "Recámaras", "Exterior", "Auto"].map(a => `<option>${a}</option>`).join("")}</select>
-      <select id="mtFreq" aria-label="Frecuencia">${FREQ.map(([d, l]) => `<option value="${d}" ${d === 90 ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+      <select id="mtFreq" aria-label="Frecuencia"><option value="una" ${mtUna ? "selected" : ""}>Una sola vez</option>${FREQ.map(([d, l]) => `<option value="${d}" ${!mtUna && d === 90 ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+      <div class="field" ${mtUna ? "" : "hidden"}><label for="mtFecha">¿Para cuándo?</label><input type="date" id="mtFecha" value="${iso(addDays(TODAY, 7))}"></div>
       <button class="btn">Agregar</button>
     </form>
     <section class="card">${list.length ? list.map(({ m, s }) => `<div class="mt">
       <div class="ring" style="--p:${s.p};--rc:${s.col}"><span>${s.diff < 0 ? "!" : s.diff + "d"}</span></div>
-      <div class="t"><b>${esc(m.texto)}</b><span class="small muted">${esc(m.area)} · ${freqLabel(m.frecuencia_dias)} · próxima ${fmtShort(s.next)}</span></div>
+      <div class="t"><b>${esc(m.texto)}</b><span class="small muted">${esc(m.area)} · ${freqLabel(m.frecuencia_dias)} · ${unaVez(m) ? "para el" : "próxima"} ${fmtShort(s.next)}</span></div>
       <div class="mt-actions"><span class="pill ${s.cls}">${s.txt}</span><button class="btn sm" data-mtdone="${m.id}">Hecho</button></div>
-      <button class="x" data-del="casa_mantenimiento:${m.id}" aria-label="Borrar">×</button></div>`).join("") : `<div class="empty">Agrega tareas como cambiar filtros, fumigar o revisar el gas.</div>`}</section>
+      <button class="x" data-del="casa_mantenimiento:${m.id}" aria-label="Borrar">×</button></div>`).join("") : `<div class="empty">Agrega tareas como cambiar filtros, fumigar o arreglar la llave del baño.</div>`}</section>
+    ${hechas.length ? `<div class="sec-title"><h2>Ya hechas</h2><p>Tareas de una sola vez</p></div><section class="card">${hechas.map(m => `<div class="check done" style="gap:10px"><span class="t">${esc(m.texto)}<br><span class="small muted">${esc(m.area)} · hecha el ${fmtShort(parse(m.completada_en))}</span></span><button class="link" data-mtundo="${m.id}">Deshacer</button><button class="x" data-del="casa_mantenimiento:${m.id}" aria-label="Borrar">×</button></div>`).join("")}</section>` : ""}
   </div></main>`;
 }
 
@@ -703,7 +710,8 @@ document.addEventListener("click", async e => {
   if (d.del) { e.preventDefault(); const [t, id] = d.del.split(":"); if (t === "casa_medicinas") S.casa_tomas = S.casa_tomas.filter(x => x.medicina_id !== id); return del(t, id); }
   if (d.who) { whoFilter = d.who; return render(); }
   if (d.day) { calSel = d.day; const dd = parse(d.day); if (dd.getMonth() !== calMonth.getMonth()) calMonth = new Date(dd.getFullYear(), dd.getMonth(), 1); return render(); }
-  if (d.mtdone) return patch("casa_mantenimiento", d.mtdone, { ultima: iso(TODAY) }, "Listo, se programó la siguiente");
+  if (d.mtdone) { const m = S.casa_mantenimiento.find(x => x.id === d.mtdone); return m && unaVez(m) ? patch("casa_mantenimiento", m.id, { completada_en: iso(TODAY), ultima: iso(TODAY) }, "¡Listo! Tarea terminada") : patch("casa_mantenimiento", d.mtdone, { ultima: iso(TODAY) }, "Listo, se programó la siguiente"); }
+  if (d.mtundo) return patch("casa_mantenimiento", d.mtundo, { completada_en: null }, "Regresó a pendientes");
   if (d.shop) return addToSuper(menus[+d.shop].shop);
   switch (b.id) {
     case "gen": genMenus(); render(); return document.querySelector(".dish")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -736,6 +744,7 @@ document.addEventListener("change", e => {
   const t = e.target;
   if (t.dataset.done) return patch("casa_tareas", t.dataset.done, { hecho_semana: t.checked ? wkKey() : null });
   if (t.dataset.sup) return patch("casa_super", t.dataset.sup, { comprado: t.checked });
+  if (t.id === "mtFreq") { mtUna = t.value === "una"; const f = $("#mtFecha"); if (f) f.closest(".field").hidden = !mtUna; return; }
   if (t.id === "hSel") { ls.set("casa-hogar", t.value); location.reload(); }
 });
 document.addEventListener("submit", async e => {
@@ -754,7 +763,7 @@ document.addEventListener("submit", async e => {
     if (ya && S.casa_medicinas.some(m => m.id === mid)) add("casa_tomas", { medicina_id: mid, dada_en: ini.toISOString(), dada_por: S.user.id });
     return;
   }
-  if (f === "mtForm") { const v = val("mtText"); if (!v) return; clear("mtText"); return add("casa_mantenimiento", { texto: v, area: $("#mtArea").value, frecuencia_dias: +$("#mtFreq").value, ultima: iso(TODAY) }); }
+  if (f === "mtForm") { const v = val("mtText"); if (!v) return; const una = $("#mtFreq").value === "una", fl = $("#mtFecha").value || iso(addDays(TODAY, 7)); clear("mtText"); return add("casa_mantenimiento", { texto: v, area: $("#mtArea").value, frecuencia_dias: una ? null : +$("#mtFreq").value, fecha_limite: una ? fl : null, ultima: iso(TODAY) }, una ? "Tarea agregada" : null); }
   if (f === "authForm") {
     const em = val("aEmail"), pw = $("#aPass").value; authBusy = true; authMsg = ""; render();
     try {
