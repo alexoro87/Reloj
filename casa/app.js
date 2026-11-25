@@ -483,9 +483,9 @@ function vCasa() {
     </form>
     <section class="card">${list.length ? list.map(({ m, s }) => `<div class="mt">
       <div class="ring" style="--p:${s.p};--rc:${s.col}"><span>${s.diff < 0 ? "!" : s.diff + "d"}</span></div>
-      <div class="t"><b>${esc(m.texto)}</b><span class="small muted">${esc(m.area)} · ${freqLabel(m.frecuencia_dias)}${!unaVez(m) && m.fecha_inicio ? ` · desde ${fmtShort(parse(m.fecha_inicio))}` : ""} · ${unaVez(m) ? "para el" : "próxima"} ${fmtShort(s.next)}</span></div>
+      <div class="t" data-mtedit-area="${m.id}"><b>${esc(m.texto)}</b><span class="small muted">${esc(m.area)} · ${freqLabel(m.frecuencia_dias)}${!unaVez(m) && m.fecha_inicio ? ` · desde ${fmtShort(parse(m.fecha_inicio))}` : ""} · ${unaVez(m) ? "para el" : "próxima"} ${fmtShort(s.next)}</span></div>
       <div class="mt-actions"><span class="pill ${s.cls}">${s.txt}</span><button class="btn sm" data-mtdone="${m.id}">Hecho</button></div>
-      <button class="x" data-del="casa_mantenimiento:${m.id}" aria-label="Borrar">×</button></div>`).join("") : `<div class="empty">Agrega tareas como cambiar filtros, fumigar o arreglar la llave del baño.</div>`}</section>
+      <div class="mt-side"><button class="x" data-mtedit="${m.id}" aria-label="Editar ${esc(m.texto)}" title="Editar"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button><button class="x" data-del="casa_mantenimiento:${m.id}" aria-label="Borrar">×</button></div></div>`).join("") : `<div class="empty">Agrega tareas como cambiar filtros, fumigar o arreglar la llave del baño.</div>`}</section>
     ${hechas.length ? `<div class="sec-title"><h2>Ya hechas</h2><p>Tareas de una sola vez</p></div><section class="card">${hechas.map(m => `<div class="check done" style="gap:10px"><span class="t">${esc(m.texto)}<br><span class="small muted">${esc(m.area)} · hecha el ${fmtShort(parse(m.completada_en))}</span></span><button class="link" data-mtundo="${m.id}">Deshacer</button><button class="x" data-del="casa_mantenimiento:${m.id}" aria-label="Borrar">×</button></div>`).join("")}</section>` : ""}
   </div></main>`;
 }
@@ -659,6 +659,29 @@ function openSheet() {
 }
 const closeSheet = () => { $("#sheet").innerHTML = ""; };
 
+/* ---------- editar tarea de la casa ---------- */
+const AREAS = ["General", "Cocina", "Baños", "Recámaras", "Exterior", "Auto"];
+let editTipo = null;
+function openEditMt(id) {
+  const m = S.casa_mantenimiento.find(x => x.id === id); if (!m) return;
+  const f = m.frecuencia_dias, enLista = f && FREQ.some(x => x[0] === f);
+  editTipo = !f ? "una" : enLista ? String(f) : "otra";
+  const unidad = f && f % 30 === 0 ? 30 : f && f % 7 === 0 ? 7 : 1, n = f ? f / unidad : 3;
+  const fecha = iso(mStatus(m).next);
+  const areas = AREAS.includes(m.area) ? AREAS : AREAS.concat(m.area);
+  $("#sheet").innerHTML = `<div class="sheet-bg v-casa" id="sheetBg"><div class="sheet" role="dialog" aria-modal="true" aria-label="Editar tarea"><div class="grab"></div>
+    <form class="stack" id="mtEditForm" data-id="${esc(m.id)}">
+      <h2 style="font-size:1.4rem">Editar tarea</h2>
+      <div class="field"><label for="meText">Tarea</label><input type="text" id="meText" value="${esc(m.texto)}" required autocomplete="off"></div>
+      <div class="two"><div class="field"><label for="meArea">Área</label><select id="meArea">${areas.map(a => `<option ${a === m.area ? "selected" : ""}>${esc(a)}</option>`).join("")}</select></div>
+        <div class="field"><label for="meFreq">Cada cuánto</label><select id="meFreq"><option value="una" ${editTipo === "una" ? "selected" : ""}>Una sola vez</option>${FREQ.map(([d, l]) => `<option value="${d}" ${editTipo === String(d) ? "selected" : ""}>${l}</option>`).join("")}<option value="otra" ${editTipo === "otra" ? "selected" : ""}>Otra…</option></select></div></div>
+      <div class="field" id="meOtra" ${editTipo === "otra" ? "" : "hidden"}><label for="meN">Repetir cada</label><div class="two"><input type="number" id="meN" min="1" max="365" value="${n}" inputmode="numeric" style="background:var(--bg);border:1.5px solid var(--line);border-radius:12px;padding:11px 12px;width:100%"><select id="meUnidad" aria-label="Unidad">${[[1, "días"], [7, "semanas"], [30, "meses"]].map(([v, l]) => `<option value="${v}" ${v === unidad ? "selected" : ""}>${l}</option>`).join("")}</select></div></div>
+      <div class="field"><label for="meFecha" id="meFechaLbl">${editTipo === "una" ? "¿Para cuándo?" : "¿Cuándo toca la próxima vez?"}</label><input type="date" id="meFecha" value="${fecha}"></div>
+      ${!editTipo || editTipo === "una" ? "" : `<div class="small muted">Desde ahí se seguirá repitiendo con la frecuencia que elijas.</div>`}
+      <div class="row"><button class="btn">Guardar cambios</button><button class="btn soft" type="button" id="meCancel">Cancelar</button></div>
+    </form></div></div>`;
+}
+
 /* ---------- instalación ---------- */
 let deferredInstall = null;
 window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredInstall = e; if (S.screen === "app") render(); });
@@ -704,7 +727,7 @@ window.addEventListener("hashchange", () => { const h = location.hash.slice(1); 
 
 /* ---------- eventos ---------- */
 document.addEventListener("click", async e => {
-  const b = e.target.closest("button"); if (!b) { if (e.target.id === "sheetBg") closeSheet(); return; }
+  const b = e.target.closest("button"); if (!b) { const ed = e.target.closest("[data-mtedit-area]"); if (ed) return openEditMt(ed.dataset.mteditArea); if (e.target.id === "sheetBg") closeSheet(); return; }
   const d = b.dataset;
   if (d.go) { e.preventDefault(); return go(d.go, d.sub); }
   if (d.sub) { sub[view] = d.sub; return render(); }
@@ -719,6 +742,8 @@ document.addEventListener("click", async e => {
   if (d.who) { whoFilter = d.who; return render(); }
   if (d.day) { calSel = d.day; const dd = parse(d.day); if (dd.getMonth() !== calMonth.getMonth()) calMonth = new Date(dd.getFullYear(), dd.getMonth(), 1); return render(); }
   if (d.mtdone) { const m = S.casa_mantenimiento.find(x => x.id === d.mtdone); return m && unaVez(m) ? patch("casa_mantenimiento", m.id, { completada_en: iso(TODAY), ultima: iso(TODAY) }, "¡Listo! Tarea terminada") : patch("casa_mantenimiento", d.mtdone, { ultima: iso(TODAY) }, "Listo, se programó la siguiente"); }
+  if (d.mtedit) return openEditMt(d.mtedit);
+  if (b.id === "meCancel") return closeSheet();
   if (d.mtundo) return patch("casa_mantenimiento", d.mtundo, { completada_en: null }, "Regresó a pendientes");
   if (d.shop) return addToSuper(menus[+d.shop].shop);
   switch (b.id) {
@@ -752,6 +777,7 @@ document.addEventListener("change", e => {
   const t = e.target;
   if (t.dataset.done) return patch("casa_tareas", t.dataset.done, { hecho_semana: t.checked ? wkKey() : null });
   if (t.dataset.sup) return patch("casa_super", t.dataset.sup, { comprado: t.checked });
+  if (t.id === "meFreq") { editTipo = t.value; $("#meOtra").hidden = editTipo !== "otra"; $("#meFechaLbl").textContent = editTipo === "una" ? "¿Para cuándo?" : "¿Cuándo toca la próxima vez?"; return; }
   if (t.id === "mtFreq") { mtTipo = t.value; $("#mtOtra").hidden = mtTipo !== "otra"; $("#mtFechaLbl").textContent = mtTipo === "una" ? "¿Para cuándo?" : "¿Cuándo toca la primera vez?"; return; }
   if (t.id === "hSel") { ls.set("casa-hogar", t.value); location.reload(); }
 });
@@ -770,6 +796,19 @@ document.addEventListener("submit", async e => {
     await add("casa_medicinas", { id: mid, nombre, dosis: val("mDosis") || null, cada_horas: cada ? +cada : null, inicio: ini.toISOString(), fin: dias ? iso(addDays(TODAY, dias - 1)) : null, notas: val("mNotas") || null, activa: true, avisar: $("#mAvisar").checked }, "Medicina agregada");
     if (ya && S.casa_medicinas.some(m => m.id === mid)) add("casa_tomas", { medicina_id: mid, dada_en: ini.toISOString(), dada_por: S.user.id });
     return;
+  }
+  if (f === "mtEditForm") {
+    const id = e.target.dataset.id, texto = val("meText"); if (!texto) return;
+    const tipo = $("#meFreq").value, fecha = $("#meFecha").value || iso(TODAY), area = $("#meArea").value;
+    let p;
+    if (tipo === "una") p = { texto, area, frecuencia_dias: null, fecha_limite: fecha };
+    else {
+      const freq = Math.min(3650, tipo === "otra" ? Math.round(Math.max(1, Math.min(365, +$("#meN").value || 1)) * +$("#meUnidad").value) : +tipo);
+      const m = S.casa_mantenimiento.find(x => x.id === id);
+      p = { texto, area, frecuencia_dias: freq, fecha_limite: null, ultima: iso(addDays(parse(fecha), -freq)), fecha_inicio: (m && m.fecha_inicio) || fecha };
+    }
+    closeSheet();
+    return patch("casa_mantenimiento", id, p, "Cambios guardados");
   }
   if (f === "mtForm") {
     const v = val("mtText"); if (!v) return;
