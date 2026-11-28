@@ -1,6 +1,6 @@
 // Casa en Orden: guarda la app para abrirla rápido y sin internet.
 // Los datos de Supabase siempre van directo a la red.
-const VERSION = "casa-v8";
+const VERSION = "casa-v9";
 const SHELL = ["./", "./index.html", "./app.js", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png"];
 
 self.addEventListener("install", e => {

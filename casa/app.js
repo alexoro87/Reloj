@@ -512,7 +512,8 @@ function medCardInicio() {
   return `<section class="card"><div class="tile-head"><h3><i style="background:var(--c-salud)"></i>Medicinas de ${esc(ninaO("la niña"))}</h3><button class="link" data-go="salud">Ver</button></div>
     ${act.map(m => { const st = medEstado(m); return `<div class="row between" style="padding:6px 0;flex-wrap:nowrap"><span style="min-width:0"><b>${esc(m.nombre)}</b>${m.dosis ? ` <span class="muted small">${esc(m.dosis)}</span>` : ""}</span><span class="pill ${st.cls}">${st.next ? (st.tarde ? "¡Ya toca!" : fmtHora(st.next)) : "Si la necesita"}</span></div>`; }).join("")}</section>`;
 }
-let medFormOpen = false;
+let medFormOpen = false, medCada = "8", medDias = "7";
+const cadaLabel = h => { h = Number(h); return h >= 24 && h % 24 === 0 ? (h === 24 ? "cada 24 h" : `cada ${h / 24} días`) : `cada ${h} h`; };
 function vSalud() {
   const meds = S.casa_medicinas.slice().sort((a, b) => a.created_at.localeCompare(b.created_at));
   const act = meds.filter(m => !medEstado(m).terminada), fin = meds.filter(m => medEstado(m).terminada);
@@ -521,7 +522,7 @@ function vSalud() {
   const card = m => { const st = medEstado(m), ts = tomasDe(m.id), hoy = ts.filter(t => iso(new Date(t.dada_en)) === iso(TODAY));
     return `<article class="card med ${st.tarde ? "late" : ""}">
       <div class="row between" style="flex-wrap:nowrap;align-items:flex-start"><div style="min-width:0"><h3 style="font-size:1.2rem">💊 ${esc(m.nombre)}</h3>
-        <div class="muted small">${[m.dosis, m.cada_horas ? `cada ${Number(m.cada_horas)} h` : "según necesidad", m.fin ? `hasta el ${fmtShort(parse(m.fin))}` : ""].filter(Boolean).map(esc).join(" · ")}</div></div>
+        <div class="muted small">${[m.dosis, m.cada_horas ? cadaLabel(m.cada_horas) : "según necesidad", m.fin ? `hasta el ${fmtShort(parse(m.fin))}` : ""].filter(Boolean).map(esc).join(" · ")}</div></div>
         <button class="x" data-del="casa_medicinas:${m.id}" aria-label="Borrar medicina">×</button></div>
       ${m.notas ? `<div class="small" style="margin-top:6px">📝 ${esc(m.notas)}</div>` : ""}
       ${st.terminada ? "" : `<div style="margin-top:10px"><span class="pill ${st.cls}">${esc(st.txt)}</span></div>`}
@@ -536,9 +537,11 @@ function vSalud() {
     ${medFormOpen ? `<form class="card addform" id="medForm"><h3>Nueva medicina</h3>
       <div class="field"><label for="mNombre">Medicina</label><input type="text" id="mNombre" placeholder="Ej. Amoxicilina" required autocomplete="off"></div>
       <div class="two"><div class="field"><label for="mDosis">Dosis</label><input type="text" id="mDosis" placeholder="Ej. 5 ml"></div>
-        <div class="field"><label for="mCada">Cada cuánto</label><select id="mCada">${[["", "Si la necesita"], ["4", "Cada 4 h"], ["6", "Cada 6 h"], ["8", "Cada 8 h"], ["12", "Cada 12 h"], ["24", "Cada 24 h"]].map(([v, l]) => `<option value="${v}" ${v === "8" ? "selected" : ""}>${l}</option>`).join("")}</select></div></div>
+        <div class="field"><label for="mCada">Cada cuánto</label><select id="mCada">${[["", "Si la necesita"], ["4", "Cada 4 h"], ["6", "Cada 6 h"], ["8", "Cada 8 h"], ["12", "Cada 12 h"], ["24", "Cada 24 h"], ["otra", "Otro…"]].map(([v, l]) => `<option value="${v}" ${v === medCada ? "selected" : ""}>${l}</option>`).join("")}</select></div></div>
+      <div class="field" id="mCadaOtra" ${medCada === "otra" ? "" : "hidden"}><label for="mCadaN">Dar cada</label><div class="two"><input type="number" id="mCadaN" min="0.5" step="0.5" value="3" inputmode="decimal" style="background:var(--bg);border:1.5px solid var(--line);border-radius:12px;padding:11px 12px;width:100%"><select id="mCadaU" aria-label="Unidad"><option value="1">horas</option><option value="24">días</option></select></div></div>
       <div class="two"><div class="field"><label for="mHora">Primera toma (hoy)</label><input type="time" id="mHora" value="${pad(new Date().getHours())}:${pad(new Date().getMinutes())}"></div>
-        <div class="field"><label for="mDias">Días de tratamiento</label><select id="mDias"><option value="">Sin fecha fin</option>${[3, 5, 7, 10, 14].map(d => `<option value="${d}" ${d === 7 ? "selected" : ""}>${d} días</option>`).join("")}</select></div></div>
+        <div class="field"><label for="mDias">Días de tratamiento</label><select id="mDias"><option value="" ${medDias === "" ? "selected" : ""}>Sin fecha fin</option>${[3, 5, 7, 10, 14].map(d => `<option value="${d}" ${String(d) === medDias ? "selected" : ""}>${d} días</option>`).join("")}<option value="otra" ${medDias === "otra" ? "selected" : ""}>Otro…</option></select></div></div>
+      <div class="field" id="mDiasOtra" ${medDias === "otra" ? "" : "hidden"}><label for="mDiasN">¿Cuántos días?</label><input type="number" id="mDiasN" min="1" max="365" value="21" inputmode="numeric" style="background:var(--bg);border:1.5px solid var(--line);border-radius:12px;padding:11px 12px;width:100%"></div>
       <div class="field"><label for="mNotas">Notas</label><input type="text" id="mNotas" placeholder="Ej. con alimento, agitar antes"></div>
       <label class="check" style="border:0;padding:4px 0"><input type="checkbox" id="mYa" checked><span class="t">Ya se le dio la primera toma</span></label>
       <label class="check" style="border:0;padding:4px 0"><input type="checkbox" id="mAvisar" checked><span class="t">Avisarnos a la hora de cada toma</span></label>
@@ -777,6 +780,8 @@ document.addEventListener("change", e => {
   const t = e.target;
   if (t.dataset.done) return patch("casa_tareas", t.dataset.done, { hecho_semana: t.checked ? wkKey() : null });
   if (t.dataset.sup) return patch("casa_super", t.dataset.sup, { comprado: t.checked });
+  if (t.id === "mCada") { medCada = t.value; $("#mCadaOtra").hidden = medCada !== "otra"; return; }
+  if (t.id === "mDias") { medDias = t.value; $("#mDiasOtra").hidden = medDias !== "otra"; return; }
   if (t.id === "meFreq") { editTipo = t.value; $("#meOtra").hidden = editTipo !== "otra"; $("#meFechaLbl").textContent = editTipo === "una" ? "¿Para cuándo?" : "¿Cuándo toca la próxima vez?"; return; }
   if (t.id === "mtFreq") { mtTipo = t.value; $("#mtOtra").hidden = mtTipo !== "otra"; $("#mtFechaLbl").textContent = mtTipo === "una" ? "¿Para cuándo?" : "¿Cuándo toca la primera vez?"; return; }
   if (t.id === "hSel") { ls.set("casa-hogar", t.value); location.reload(); }
@@ -790,7 +795,10 @@ document.addEventListener("submit", async e => {
   if (f === "medForm") {
     const nombre = val("mNombre"); if (!nombre) return;
     const [hh, mm] = ($("#mHora").value || "").split(":").map(Number), ini = new Date(); if (!isNaN(hh)) ini.setHours(hh, mm || 0, 0, 0);
-    const dias = +$("#mDias").value, cada = $("#mCada").value;
+    let cada = $("#mCada").value, dias = $("#mDias").value;
+    if (cada === "otra") { const h = Math.round((+$("#mCadaN").value || 0) * +$("#mCadaU").value * 100) / 100; if (!(h > 0 && h <= 168)) return toast("Elige entre media hora y 7 días"); cada = String(h); }
+    dias = dias === "otra" ? Math.max(1, Math.min(365, Math.round(+$("#mDiasN").value || 1))) : +dias;
+    medCada = "8"; medDias = "7";
     medFormOpen = false;
     const mid = uuid(), ya = $("#mYa").checked;
     await add("casa_medicinas", { id: mid, nombre, dosis: val("mDosis") || null, cada_horas: cada ? +cada : null, inicio: ini.toISOString(), fin: dias ? iso(addDays(TODAY, dias - 1)) : null, notas: val("mNotas") || null, activa: true, avisar: $("#mAvisar").checked }, "Medicina agregada");
